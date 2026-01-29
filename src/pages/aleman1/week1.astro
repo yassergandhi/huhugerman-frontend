@@ -1,0 +1,126 @@
+---
+import Layout from '../../layouts/Layout.astro';
+---
+<Layout title="Woche 1: Begrüßungen">
+  <div class="container">
+    <div class="navbar" style="padding: 0; border: none; margin-bottom: 1rem;">
+      <a href="/dashboard" style="color:var(--accent-primary); font-weight:bold; display: flex; align-items: center; gap: 5px;">
+        <span>←</span> Volver al Dashboard
+      </a>
+    </div>
+
+    <h1>Woche 1: Begrüßungen</h1>
+
+    <div class="card" style="border-left: 4px solid var(--accent-primary); background: rgba(46, 249, 158, 0.05);">
+      <h3 style="margin-top:0; font-size: 1.1rem;">📝 Instrucciones de la Actividad</h3>
+      <p style="font-size: 0.95rem; color: var(--text-primary); margin-bottom: 1rem;">
+        Antes de comenzar, <b>recuerda repasar tus apuntes</b> de las sesiones presenciales y los refuerzos de los miércoles. Esta actividad está diseñada para consolidar lo visto en clase.
+      </p>
+      <div style="background: rgba(0,0,0,0.2); padding: 1rem; border-radius: 8px; font-size: 0.85rem;">
+        <b style="color: var(--accent-secondary);">💡 Recordatorio Gramatical:</b>
+        <ul style="margin: 0.5rem 0 0 1.2rem; padding: 0; color: var(--text-secondary);">
+          <li><b>Ich:</b> Ich heiße... / Ich wohne in...</li>
+          <li><b>Er / Sie:</b> Er heißt... / Sie wohnt in...</li>
+          <li><b>Origen:</b> Usa siempre <i>"aus"</i> (aus Deutschland, aus Mexiko).</li>
+        </ul>
+      </div>
+    </div>
+    
+    <div class="card" style="padding: 0; overflow: hidden; margin-bottom: 2rem;">
+      <div style="position: relative; padding-bottom: 56.25%; height: 0;">
+        <iframe 
+          src="https://www.youtube.com/embed/_mS0EV3laEk" 
+          style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border:0;"
+          allowfullscreen>
+        </iframe>
+      </div>
+    </div>
+
+    <form id="activity-form" class="card">
+      <h2 style="font-size: 1.2rem; margin-bottom: 1.5rem;">Tu Tarea (Hausaufgabe)</h2>
+
+      <div style="margin-bottom: 1.5rem;">
+        <label>1. Tu presentación personal:</label>
+        <p style="font-size: 0.8rem; opacity: 0.7; margin-top: -5px;">Incluye saludo, nombre, dónde vives y despedida.</p>
+        <textarea id="part1" rows="3" placeholder="Ej: Hallo! Ich heiße... Ich wohne in... Tschüss!"></textarea>
+      </div>
+      
+      <div style="margin-bottom: 1.5rem;">
+        <label>2. Presenta a un personaje famoso:</label>
+        <p style="font-size: 0.8rem; opacity: 0.7; margin-top: -5px;">Usa las estructuras: Das ist... Er/Sie heißt... Er/Sie wohnt in...</p>
+        <textarea id="part2" rows="3" placeholder="Elige a alguien de un país de habla alemana (Alemania, Austria, Suiza)."></textarea>
+      </div>
+      
+      <div style="margin-bottom: 1.5rem;">
+        <label>3. Reflexión del video:</label>
+        <p style="font-size: 0.8rem; opacity: 0.7; margin-top: -5px;">¿Qué te pareció curioso? ¿Cuál es tu saludo o despedida preferida para practicar?</p>
+        <textarea id="part3" rows="4" placeholder="Escribe aquí tus impresiones sobre el video..."></textarea>
+      </div>
+
+      <button type="submit" id="submit-btn" class="btn" style="width:100%;">
+        Enviar y ver Feedback
+      </button>
+      <p id="status-msg" style="text-align:center; margin-top:1rem;"></p>
+    </form>
+  </div>
+
+  <script>
+    import { supabase } from '../../lib/supabase';
+
+    const form = document.getElementById('activity-form');
+    const btn = document.getElementById('submit-btn');
+
+    const loadingMessages = [
+      "IA Analizando...",
+      "Consultando al Tutor...",
+      "Corrigiendo gramática...",
+      "Preparando tu feedback..."
+    ];
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      btn.disabled = true;
+      
+      let msgIndex = 0;
+      btn.innerHTML = `<span class="spinner"></span> ${loadingMessages[0]}`;
+      
+      const interval = setInterval(() => {
+        msgIndex = (msgIndex + 1) % loadingMessages.length;
+        btn.innerHTML = `<span class="spinner"></span> ${loadingMessages[msgIndex]}`;
+      }, 3500);
+
+      const { data: { user } } = await supabase.auth.getUser();
+      const text = `[PRESENTACIÓN]\n${document.getElementById('part1').value}\n\n[PERSONAJE]\n${document.getElementById('part2').value}\n\n[REFLEXIÓN]\n${document.getElementById('part3').value}`;
+
+      try {
+        const response = await fetch('/api/submit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text })
+        });
+        const result = await response.json();
+        clearInterval(interval);
+
+        if (!result.success) throw new Error(result.error);
+
+        const { error: dbError } = await supabase.from('submissions').upsert({
+          user_id: user.id,
+          user_email: user.email,
+          session_id: 'a1-w1',
+          content_text: text,
+          ai_feedback: result.feedback
+        }, { onConflict: 'user_id,session_id' });
+
+        if (dbError) throw dbError;
+
+        window.location.href = `/dashboard?new_feedback=${encodeURIComponent(result.feedback)}`;
+
+      } catch (err) {
+        clearInterval(interval);
+        alert("⚠️ Error: " + err.message);
+        btn.disabled = false;
+        btn.innerText = "Reintentar";
+      }
+    });
+  </script>
+</Layout>

@@ -1,0 +1,108 @@
+---
+import Layout from '../../layouts/Layout.astro';
+---
+<Layout title="Mi Dashboard">
+  <div class="container">
+    <div class="navbar" style="border:none; padding:0; margin-bottom:1rem;">
+      <a href="/" class="brand">huhuGERMAN</a>
+      <button id="logout-btn" class="btn-outline">Salir</button>
+    </div>
+    
+    <div style="margin-bottom: 2.5rem;">
+      <h1 style="margin-bottom:0.2em;">Mi Progreso</h1>
+      <span id="user-email" style="color: var(--text-secondary); font-size: 0.9rem; opacity: 0.8;">Cargando perfil...</span>
+    </div>
+
+    <div id="new-feedback" style="display:none; margin-bottom: 3rem;">
+      <div class="feedback-card">
+        <h3>✨ Feedback del Tutor IA</h3>
+        <div id="feedback-text" class="content"></div>
+      </div>
+    </div>
+
+    <div id="active-course-section" style="margin-bottom: 3rem;">
+      <div class="spinner"></div> Cargando tu ruta...
+    </div>
+
+    <h2 style="margin-bottom: 1.5rem; font-size: 1.4rem; color: var(--accent-primary);">Historial de Actividades</h2>
+    <div id="submissions-list" class="grid">
+      </div>
+  </div>
+
+  <script>
+    import { supabase } from '../../lib/supabase';
+    import { renderRoadmap } from '../../lib/roadmap';
+
+    async function initDashboard() {
+      // 1. Verificar Usuario
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { window.location.href = '/'; return; }
+      
+      document.getElementById('user-email').innerText = user.email;
+
+      // 2. Obtener Perfil (NIVEL)
+      // Buscamos en la tabla profiles. Si no existe, el trigger SQL lo habrá creado por defecto en A1.
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('assigned_level')
+        .eq('id', user.id)
+        .single();
+
+      // Fallback de seguridad: si falla la carga, asumimos A1
+      const userLevel = profile ? profile.assigned_level : 'aleman-1';
+
+      // 3. Renderizar Roadmap Modular
+      renderRoadmap('active-course-section', userLevel);
+
+      // 4. Mostrar Feedback si existe en URL
+      const urlParams = new URLSearchParams(window.location.search);
+      const newFeedback = urlParams.get('new_feedback');
+      if (newFeedback) {
+        document.getElementById('new-feedback').style.display = 'block';
+        document.getElementById('feedback-text').innerHTML = decodeURIComponent(newFeedback);
+        window.history.replaceState({}, document.title, "/dashboard");
+      }
+
+      // 5. Cargar Historial
+      const { data: subs } = await supabase
+        .from('submissions')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      renderSubmissions(subs || []);
+
+      // Logout
+      document.getElementById('logout-btn').addEventListener('click', async () => {
+        await supabase.auth.signOut();
+        window.location.href = '/';
+      });
+    }
+
+    function renderSubmissions(subs) {
+      const list = document.getElementById('submissions-list');
+      if (subs.length === 0) {
+        list.innerHTML = '<p style="grid-column: 1/-1; text-align:center; padding: 2rem; color: var(--text-secondary);">Aún no hay actividades entregadas.</p>';
+        return;
+      }
+      
+      list.innerHTML = '';
+      subs.forEach(sub => {
+        const date = new Date(sub.created_at).toLocaleDateString();
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.style.padding = '1.2rem';
+        card.innerHTML = `
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
+            <span class="status-badge">${sub.session_id}</span>
+            <span style="font-size:0.7rem; color:var(--text-secondary);">${date}</span>
+          </div>
+          <p style="font-size:0.85rem; color:var(--text-secondary); margin:0; font-family: monospace;">${sub.content_text.substring(0, 50)}...</p>
+        `;
+        list.appendChild(card);
+      });
+    }
+
+    initDashboard();
+  </script>
+</Layout>

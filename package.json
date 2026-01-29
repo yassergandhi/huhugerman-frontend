@@ -9,6 +9,9 @@
     "astro": "astro"
   },
   "dependencies": {
-    "astro": "^5.16.15"
+    "@astrojs/vercel": "^9.0.4",
+    "@supabase/supabase-js": "^2.93.2",
+    "astro": "^5.16.15",
+    "openai": "^6.17.0"
   }
 }

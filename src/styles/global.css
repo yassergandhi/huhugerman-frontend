@@ -1,32 +1,23 @@
-/* ===============================
-   GLOBAL DESIGN SYSTEM
-   =============================== */
+/* ===================================================
+   huhuGERMAN - GLOBAL DESIGN SYSTEM (Master Synthwave)
+   =================================================== */
 
 :root {
-  /* 2026 Synthwave Edition */
   --bg-color: #0b021d;
   --surface-color: #160a2f;
   --text-primary: #ffffff;
   --text-secondary: #aed7f5;
-
-  --accent-primary: #2ef99e;
-  --accent-secondary: #64e232;
-
+  --accent-primary: #2ef99e;   /* Neon Green */
+  --accent-secondary: #64e232; /* Lime Green */
   --border-color: #2d1b54;
-
+  --input-bg: #080116;         
   --font-main: 'Inter', system-ui, -apple-system, sans-serif;
-
   --max-width-mobile: 640px;
   --max-width-desktop: 900px;
 }
 
-/* ===============================
-   RESET & BASE
-   =============================== */
-
-*,
-*::before,
-*::after {
+/* --- 1. RESET & BASE (Corrección de espacios) --- */
+*, *::before, *::after {
   box-sizing: border-box;
 }
 
@@ -34,53 +25,40 @@ html {
   scroll-behavior: smooth;
 }
 
-body {
+body, h1, h2, h3, p, pre, blockquote, figure {
   margin: 0;
   padding: 0;
-
-  background-color: var(--bg-color);
-  color: var(--text-primary);
-
-  font-family: var(--font-main);
-  line-height: 1.6;
-
-  -webkit-font-smoothing: antialiased;
 }
 
-/* ===============================
-   LAYOUT
-   =============================== */
+body {
+  background-color: var(--bg-color);
+  color: var(--text-primary);
+  font-family: var(--font-main);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+}
 
+/* --- 2. LAYOUT --- */
 .container {
   max-width: var(--max-width-mobile);
   margin: 0 auto;
-  padding: 3.5rem 1.5rem 5rem;
+  padding: 2.5rem 1.2rem 5rem;
 }
 
-/* Desktop expansion */
 @media (min-width: 1024px) {
   .container {
     max-width: var(--max-width-desktop);
-    padding-top: 4.5rem;
   }
 }
 
-/* ===============================
-   TYPOGRAPHY
-   =============================== */
-
-h1,
-h2,
-h3 {
+/* --- 3. TYPOGRAPHY --- */
+h1, h2, h3 {
   margin: 0 0 0.6em;
   font-weight: 800;
   letter-spacing: -0.04em;
-}
-
-h1,
-h2 {
   color: var(--accent-primary);
-  text-shadow: 0 0 10px rgba(107, 218, 225, 0.25);
+  text-shadow: 0 0 10px rgba(46, 249, 158, 0.25);
 }
 
 p {
@@ -88,222 +66,202 @@ p {
   color: var(--text-secondary);
 }
 
-/* ===============================
-   LINKS (NO UNDERLINE)
-   =============================== */
-
 a {
   color: var(--accent-primary);
   text-decoration: none;
+  transition: filter 0.2s;
 }
 
 a:hover {
-  filter: brightness(1.15);
+  filter: brightness(1.2);
 }
 
-/* ===============================
-   SITE HEADER
-   =============================== */
-
-.site-header {
-  margin-bottom: 4rem;
+/* --- 4. COMPONENTS --- */
+.navbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 2rem;
+  border-bottom: 1px solid var(--border-color);
+  margin-bottom: 2.5rem;
 }
 
-.site-title {
-  font-size: 1.8rem;
-}
-
-/* ===============================
-   COURSE CARDS
-   =============================== */
-
-.courses-grid {
-  display: grid;
-  gap: 1.5rem;
-  margin-bottom: 4.5rem;
-}
-
-@media (min-width: 768px) {
-  .courses-grid {
-    grid-template-columns: 1;
-  }
+.brand {
+  font-size: 1.5rem;
+  font-weight: 900;
+  letter-spacing: -1px;
+  color: var(--text-primary) !important;
 }
 
 .card {
   background: var(--surface-color);
   border: 1px solid var(--border-color);
   border-radius: 16px;
-  padding: 2rem;
-
+  padding: 1.8rem;
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
-
-  transition:
-    transform 0.25s ease,
-    box-shadow 0.25s ease,
-    border-color 0.25s ease;
+  margin-bottom: 1.5rem;
+  transition: transform 0.25s ease, border-color 0.25s ease;
 }
 
 .card:hover {
-  transform: translateY(-4px);
-  border-color: var(--accent-secondary);
-  box-shadow: 0 0 28px rgba(100, 226, 50, 0.25);
+  border-color: var(--accent-primary);
+  transform: translateY(-2px);
 }
 
-.card-title {
-  font-size: 1.35rem;
+/* --- 5. BUTTONS --- */
+.btn {
+  display: inline-block;
+  background: linear-gradient(90deg, var(--accent-primary), #00a2ff);
+  color: #0b021d !important;
+  padding: 0.9rem 1.6rem;
+  border-radius: 10px;
+  font-weight: 700;
+  border: none;
+  cursor: pointer;
+  text-align: center;
+  transition: box-shadow 0.2s, transform 0.1s;
+  text-transform: uppercase;
+  font-size: 0.85rem;
+}
+
+.btn:hover {
+  box-shadow: 0 0 20px var(--accent-primary);
+  transform: translateY(-1px);
+}
+
+.btn-outline {
+  background: transparent;
+  border: 2px solid var(--border-color);
+  color: var(--text-secondary) !important;
+  padding: 0.6rem 1.2rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+/* --- 6. FORMS --- */
+label {
+  display: block;
+  margin-bottom: 0.6rem;
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--text-primary);
+}
+
+input, textarea {
+  width: 100%;
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+  background-color: var(--input-bg) !important;
+  border: 1px solid var(--border-color);
+  color: var(--text-primary) !important;
+  border-radius: 10px;
+  font-family: var(--font-main);
+  font-size: 1rem;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  appearance: none;
+}
+
+input:focus, textarea:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 10px rgba(46, 249, 158, 0.2);
+}
+
+::placeholder {
+  color: rgba(174, 215, 245, 0.4);
+}
+
+/* --- 7. FEEDBACK & COMPARISON --- */
+.feedback-card {
+  background: #080116 !important;
+  border: 2px solid var(--accent-primary) !important;
+  color: var(--text-secondary) !important;
+  padding: 1.8rem;
+  border-radius: 14px;
+  box-shadow: 0 0 25px rgba(46, 249, 158, 0.1);
+  margin-top: 2rem;
+}
+
+.feedback-card b, .feedback-card strong {
+  color: var(--accent-primary);
+  font-weight: 800;
+}
+
+.feedback-card h3 {
+  font-size: 1.1rem;
+  text-transform: uppercase;
+  margin-bottom: 1.2rem;
   color: var(--accent-primary);
 }
 
-/* ===============================
-   FORM TRIGGER
-   =============================== */
-.form-instruction{
-  font-weight: 500;
-  padding: 15px;
-  color: var(--surface-color);
-}
-.form-trigger {
-  display: inline-block;
-
-  background: linear-gradient(
-    90deg,
-    var(--accent-primary),
-    #00a2ff
-  );
-
-  color: #0b021d;
-  padding: 0.85rem 1.6rem;
-
-  border-radius: 10px;
-  font-size: 0.9rem;
-  font-weight: 700;
-
-  border: none;
-  cursor: pointer;
-
-  transition: box-shadow 0.25s ease, filter 0.25s ease;
+.comparison-box {
+  background: #0d0421 !important;
+  border: 1px solid var(--border-color) !important;
+  border-left: 4px solid var(--accent-primary) !important;
+  border-radius: 8px;
+  padding: 1.2rem;
+  margin: 1.5rem 0;
+  color: var(--text-primary) !important;
 }
 
-.form-trigger:hover {
-  box-shadow: 0 0 18px var(--accent-primary);
-  filter: brightness(1.1);
-}
-
-/* ===============================
-   FORM CONTAINER (CRITICAL FIX)
-   =============================== */
-
-.form-container {
-  margin-top: 2.5rem;
-
-  background: #ffffff;
-  border-radius: 14px;
-
-  /* IMPORTANT:
-     No scroll aquí */
-  overflow: hidden;
-
-  border: 3px solid var(--accent-primary);
-}
-
-/* IFRAME controls the height, NOT the container */
-.form-container iframe {
-  width: 100%;
-  min-height: 100svh; /* modern mobile */
-  min-height: 100vh;  /* fallback */
-
-  border: 0;
+.comparison-box .label {
+  color: var(--accent-primary);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  font-weight: bold;
   display: block;
+  margin-bottom: 0.4rem;
+  letter-spacing: 0.05em;
 }
 
-/* Small laptops / tablets (11–13") */
-@media (min-width: 768px) and (max-width: 1200px) {
-  .form-container iframe {
-    min-height: 120vh;
-  }
+.comparison-box .content {
+  color: var(--text-secondary);
+  font-family: 'Courier New', Courier, monospace;
+  display: block;
+  margin-bottom: 1rem;
+  line-height: 1.4;
 }
 
-/* ===============================
-   ROADMAP
-   =============================== */
+.comparison-box .content:last-child {
+  margin-bottom: 0;
+}
 
-.roadmap-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+/* --- 8. UTILS & ANIMATIONS --- */
+.grid {
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
 
-  padding: 1.1rem 0;
-  border-bottom: 1px solid var(--border-color);
+.locked {
+  opacity: 0.4;
+  pointer-events: none;
+  filter: grayscale(1);
 }
 
 .status-badge {
   font-size: 0.7rem;
-  padding: 0.35rem 0.9rem;
-
+  padding: 0.3rem 0.8rem;
   border-radius: 6px;
   font-weight: 800;
-  border: 1px solid currentColor;
-}
-
-.status-locked {
-  color: var(--text-secondary);
-  background: rgba(157, 141, 189, 0.1);
-}
-
-.status-available {
-  color: var(--accent-secondary);
-  background: rgba(100, 226, 50, 0.12);
-  text-shadow: 0 0 6px var(--accent-secondary);
-}
-
-/* ===============================
-   TOOLBOX
-   =============================== */
-
-.toolbox-section {
-  margin-top: 5rem;
-
-  background: rgba(45, 27, 84, 0.45);
-  border: 1px solid var(--border-color);
-
-  padding: 2.5rem;
-  border-radius: 18px;
-}
-
-.toolbox-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-.toolbox-list li {
-  margin-bottom: 0.6rem;
-}
-
-.toolbox-list a {
+  background: rgba(46, 249, 158, 0.1);
+  color: var(--accent-primary);
+  border: 1px solid var(--accent-primary);
   text-transform: uppercase;
-  font-size: 0.75rem;
-  letter-spacing: 0.12em;
 }
 
-/* ===============================
-   FOOTER
-   =============================== */
-
-.site-footer {
-  margin-top: 6rem;
-  padding-top: 2rem;
-
-  border-top: 1px solid var(--border-color);
-  text-align: center;
-
-  font-size: 0.8rem;
-  color: var(--text-secondary);
+.spinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid rgba(46, 249, 158, 0.2);
+  border-top: 3px solid var(--accent-primary);
+  border-radius: 50%;
+  display: inline-block;
+  animation: spin 0.8s linear infinite;
+  vertical-align: middle;
 }
 
-/* Mobile breathing room */
-@media (max-width: 767px) {
-  .container {
-    padding-bottom: 6rem;
-  }
+@keyframes spin {
+  100% { transform: rotate(360deg); }
 }

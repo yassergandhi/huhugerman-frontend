@@ -1,22 +1,48 @@
 ---
-import BaseLayout from '../layouts/BaseLayout.astro';
-import CourseCard from '../components/CourseCard.astro';
-import Roadmap from '../components/Roadmap.astro';
-import Toolbox from '../components/Toolbox.astro';
+import Layout from '../layouts/Layout.astro';
 ---
+<Layout title="Inicio">
+  <div class="container">
+    <h1 style="text-align:center; margin-bottom: 2rem;">Wähle deinen Kurs (Elige tu nivel)</h1>
+    
+    <div class="grid">
+      <div class="card">
+        <span class="status-badge">Principiantes</span>
+        <h2>🇩🇪 Alemán 1</h2>
+        <p>Estructuras básicas, verbos en presente y vocabulario de supervivencia.</p>
+        <button class="btn js-course-btn" data-url="/aleman1">Ir al Curso</button>
+      </div>
 
-<BaseLayout title="Portal">
-  <div class="courses-grid">
-    <CourseCard 
-      title="Alemán 1" 
-      description="Primer contacto con el alemán. Aquí consolidarás las bases vistas en clase: estructuras esenciales, vocabulario clave y comprensión inicial."
-    />
-    <CourseCard 
-      title="Alemán 2" 
-      description="Continuación del proceso. Refuerza lo aprendido y avanza hacia una comunicación más fluida para hablar sobre actividades cotidianas, el tiempo y pasatiempos."
-    />
+      <div class="card">
+        <span class="status-badge">A1.2 - A2</span>
+        <h2>🇩🇪 Alemán 2</h2>
+        <p>Pasado (Perfekt), preposiciones y textos más complejos.</p>
+        <button class="btn js-course-btn" data-url="/aleman2">Ir al Curso</button>
+      </div>
+    </div>
   </div>
 
-  <Roadmap />
-  <Toolbox />
-</BaseLayout>
+  <script>
+    import { supabase } from '../lib/supabase';
+    
+    // Interceptamos los clicks para asegurar que estén logueados
+    const buttons = document.querySelectorAll('.js-course-btn');
+    
+    buttons.forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        const url = e.target.getAttribute('data-url');
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (!session) {
+          // Si no hay sesión, loguear primero y redirigir al curso
+          await supabase.auth.signInWithOAuth({
+            provider: 'google',
+            options: { redirectTo: window.location.origin + url }
+          });
+        } else {
+          window.location.href = url;
+        }
+      });
+    });
+  </script>
+</Layout>

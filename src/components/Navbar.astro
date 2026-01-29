@@ -1,0 +1,36 @@
+---
+---
+<nav class="navbar">
+  <a href="/" class="brand">huhuGERMAN</a>
+  <div id="auth-container">
+    <button id="login-btn" class="btn">Login con Google</button>
+  </div>
+</nav>
+
+<script>
+  import { supabase } from '../lib/supabase';
+
+  const authContainer = document.getElementById('auth-container');
+  
+  // Verificar sesión al cargar
+  const { data: { session } } = await supabase.auth.getSession();
+
+  if (session) {
+    authContainer.innerHTML = `
+      <a href="/dashboard" style="margin-right: 1rem; font-weight:bold;">Mi Dashboard</a>
+      <button id="logout-btn" class="btn-outline" style="padding: 0.4rem 0.8rem;">Salir</button>
+    `;
+    
+    document.getElementById('logout-btn').addEventListener('click', async () => {
+      await supabase.auth.signOut();
+      window.location.href = '/';
+    });
+  } else {
+    document.getElementById('login-btn').addEventListener('click', async () => {
+      await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: window.location.origin + '/dashboard' }
+      });
+    });
+  }
+</script>
