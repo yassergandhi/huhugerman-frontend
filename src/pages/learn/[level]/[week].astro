@@ -1,0 +1,60 @@
+---
+// Usamos los nuevos ALIAS (Más limpio, menos error humano)
+import Layout from '@layouts/Layout.astro';
+import LessonUI from '@components/LessonUI.astro';
+import { COURSE_CONFIG } from '@lib/roadmap';
+
+const { level, week } = Astro.params;
+
+// --- ZONA DE DIAGNÓSTICO FORENSE ---
+// Esto imprimirá en tu terminal (no en el navegador) qué está pasando realmente.
+console.log("\n🔍 --- INICIO DEBUG DE RUTA ---");
+console.log(`📍 URL Params -> Level: "${level}" | Week: "${week}"`);
+
+// 1. Verificamos si COURSE_CONFIG se importó bien
+if (!COURSE_CONFIG) {
+  console.error("❌ ERROR CRÍTICO: COURSE_CONFIG es undefined. Revisa src/lib/roadmap.js");
+  return Astro.redirect('/404');
+}
+
+// 2. Imprimimos qué claves (niveles) existen realmente en la configuración
+const availableLevels = Object.keys(COURSE_CONFIG);
+console.log(`📚 Niveles disponibles en JS: [${availableLevels.join(', ')}]`);
+
+// 3. Normalización y Búsqueda
+const cleanLevel = level?.replace('-', '') || ''; // Quita guiones por si acaso
+const levelData = COURSE_CONFIG[cleanLevel];
+
+if (!levelData) {
+  console.error(`❌ FALLO: Buscamos "${cleanLevel}" pero no está en las claves.`);
+  return Astro.redirect('/404');
+} else {
+  console.log(`✅ Nivel encontrado: ${levelData.title}`);
+}
+
+// 4. Búsqueda de Semana (Más tolerante)
+const weekNumber = week?.match(/\d+/)?.[0]; // Extrae "1" de "week1"
+console.log(`🔢 Buscando semana número: ${weekNumber}`);
+
+const lessonData = levelData.weeks.find(w => w.id.includes(`w${weekNumber}`));
+
+if (!lessonData) {
+  console.error(`❌ FALLO: No se encontró la semana con patrón "w${weekNumber}" en el nivel.`);
+  // Imprimimos los IDs disponibles para ver por qué falla
+  console.log(`   IDs disponibles: ${levelData.weeks.map(w => w.id).join(', ')}`);
+  return Astro.redirect('/404');
+}
+
+console.log(`✅ LECCIÓN ENCONTRADA: ${lessonData.title}`);
+console.log("🏁 --- FIN DEBUG ---\n");
+// --- FIN ZONA DE DIAGNÓSTICO ---
+---
+
+<Layout title={`${lessonData.title} | Huhugerman`}>
+  <LessonUI 
+    level={cleanLevel} 
+    week={week} 
+    title={lessonData.title} 
+    description="Escribe tu ejercicio y recibe corrección instantánea." 
+  />
+</Layout>

@@ -1,18 +1,133 @@
 ---
+// src/layouts/Layout.astro
 import '../styles/global.css';
-import Navbar from '../components/Navbar.astro';
+
+interface Props {
+  title: string;
+}
+
 const { title } = Astro.props;
 ---
+
+<!doctype html>
 <html lang="es">
   <head>
-    <meta charset="utf-8" />
+    <meta charset="UTF-8" />
+    <meta name="description" content="Aprende alemán con IA y contexto real" />
     <meta name="viewport" content="width=device-width" />
-    <title>{title} | huhuGERMAN</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="generator" content={Astro.generator} />
+    <title>{title}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
   </head>
   <body>
-    <Navbar />
-    <main>
-      <slot />
-    </main>
+    <nav class="navbar container" style="margin-bottom: 0; padding-top: 1.5rem;">
+      <a href="/" class="brand">
+        huhu<span style="color: var(--accent-primary);">GERMAN</span>
+      </a>
+      
+      <div class="flex items-center gap-4">
+        <button id="auth-btn" class="btn-auth">
+          <span id="auth-text">Cargando...</span>
+        </button>
+      </div>
+    </nav>
+
+    <slot />
+
+    <footer style="text-align: center; padding: 4rem 1rem; color: var(--text-secondary); font-size: 0.9rem; opacity: 0.6;">
+      <p>&copy; {new Date().getFullYear()} Huhugerman. Hecho con 💚 en CDMX.</p>
+    </footer>
+
+    <script>
+      import { supabase } from '../lib/supabase';
+
+      const authBtn = document.getElementById('auth-btn');
+      const authText = document.getElementById('auth-text');
+
+      async function updateAuthUI() {
+        const { data: { session } } = await supabase.auth.getSession();
+
+        if (session) {
+          // ESTADO: LOGUEADO -> Mostrar "Cerrar Sesión"
+          authText.innerText = 'Cerrar Sesión';
+          authBtn.classList.remove('login-mode');
+          authBtn.classList.add('logout-mode');
+          
+          // Acción al hacer click: Logout
+          authBtn.onclick = async () => {
+            await supabase.auth.signOut();
+            localStorage.clear(); // Limpieza extra por seguridad
+            window.location.href = '/';
+          };
+        } else {
+          // ESTADO: NO LOGUEADO -> Mostrar "Login con Google"
+          authText.innerText = 'Login con Google';
+          authBtn.classList.add('login-mode');
+          authBtn.classList.remove('logout-mode');
+          
+          // Acción al hacer click: Login
+          authBtn.onclick = async () => {
+            await supabase.auth.signInWithOAuth({
+              provider: 'google',
+              options: {
+                redirectTo: `${window.location.origin}/dashboard`
+              }
+            });
+          };
+        }
+      }
+
+      // Ejecutar al cargar
+      updateAuthUI();
+
+      // Escuchar cambios de estado (por si expira la sesión mientras navega)
+      supabase.auth.onAuthStateChange((event, session) => {
+        updateAuthUI();
+      });
+    </script>
+
+    <style>
+      /* ESTILOS DEL BOTÓN DE AUTH */
+      .btn-auth {
+        /* Tu padding solicitado */
+        padding: 0.6rem 1.4rem; 
+        
+        border-radius: 50px; /* Bordes redondeados modernos */
+        font-weight: 700;
+        font-size: 0.9rem;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        border: 2px solid transparent;
+        font-family: var(--font-main);
+      }
+
+      /* Modo Login (Llamativo) */
+      .login-mode {
+        background: var(--text-primary);
+        color: var(--bg-color);
+        border-color: var(--text-primary);
+      }
+      .login-mode:hover {
+        background: transparent;
+        color: var(--text-primary);
+        box-shadow: 0 0 15px rgba(255, 255, 255, 0.3);
+      }
+
+      /* Modo Logout (Sutil / Advertencia) */
+      .logout-mode {
+        background: transparent;
+        border: 1px solid var(--text-secondary);
+        color: var(--text-secondary);
+        opacity: 0.8;
+      }
+      .logout-mode:hover {
+        border-color: #ff6b6b;
+        color: #ff6b6b;
+        opacity: 1;
+      }
+    </style>
   </body>
 </html>

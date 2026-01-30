@@ -3,24 +3,41 @@ import Layout from '../layouts/Layout.astro';
 ---
 <Layout title="Inicio">
   <div class="container">
-    <h1 style="text-align:center; margin-bottom: 2rem;">Wähle deinen Kurs (Elige tu nivel)</h1>
-    
-    <div class="grid">
-      <div class="card">
-        <span class="status-badge">Principiantes</span>
-        <h2>🇩🇪 Alemán 1</h2>
-        <p>Estructuras básicas, verbos en presente y vocabulario de supervivencia.</p>
-        <button class="btn js-course-btn" data-url="/aleman1">Ir al Curso</button>
-      </div>
+  <h1 style="text-align:center; margin-bottom: 0.5rem;">
+    Elige tu curso de alemán
+  </h1>
 
-      <div class="card">
-        <span class="status-badge">A1.2 - A2</span>
-        <h2>🇩🇪 Alemán 2</h2>
-        <p>Pasado (Perfekt), preposiciones y textos más complejos.</p>
-        <button class="btn js-course-btn" data-url="/aleman2">Ir al Curso</button>
-      </div>
+  <p style="text-align:center; margin-bottom: 2rem;">
+    Wähle deinen Kurs
+  </p>
+
+  <div class="grid">
+    <div class="card">
+      <span class="status-badge">Primer contacto</span>
+      <h2>🇩🇪 Alemán 1</h2>
+      <p>
+        Empieza desde cero. Aprende a presentarte, hacer preguntas y hablar de ti,
+        tu familia y tu entorno en alemán, paso a paso.
+      </p>
+      <button class="btn js-course-btn" data-url="/aleman1">
+        Ir al Curso
+      </button>
+    </div>
+
+    <div class="card">
+      <span class="status-badge">Uso cotidiano</span>
+      <h2>🇩🇪 Alemán 2</h2>
+      <p>
+        Usa el alemán en situaciones reales: pedir comida, comprar,
+        hablar con amigos y contar qué haces el fin de semana.
+      </p>
+      <button class="btn js-course-btn" data-url="/aleman2">
+        Ir al Curso
+      </button>
     </div>
   </div>
+</div>
+
 
   <script>
     import { supabase } from '../lib/supabase';

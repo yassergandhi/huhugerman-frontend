@@ -1,6 +1,9 @@
+// src/lib/roadmap.js
+
 // CONFIGURACIÓN MAESTRA DE LOS CURSOS
+// ⚠️ IMPORTANTE: Las claves 'aleman1' y 'aleman2' NO llevan guion.
 export const COURSE_CONFIG = {
-  'aleman-1': {
+  'aleman1': { 
     title: 'Alemán 1: Fundamentos',
     path: 'aleman1',
     weeks: [
@@ -16,7 +19,7 @@ export const COURSE_CONFIG = {
       { id: 'a1-w10', title: 'Woche 10: Abschluss', active: false }
     ]
   },
-  'aleman-2': {
+  'aleman2': { 
     title: 'Alemán 2: Intermedio',
     path: 'aleman2',
     weeks: [
@@ -34,42 +37,43 @@ export const COURSE_CONFIG = {
   }
 };
 
-// FUNCIÓN DE RENDERIZADO (Reutilizable)
+// Mantenemos esta función por si la usas en el Dashboard, 
+// pero ahora es compatible con las nuevas claves.
 export function renderRoadmap(containerId, level) {
   const container = document.getElementById(containerId);
-  const config = COURSE_CONFIG[level];
+  if (!container) return;
+
+  // Limpieza: Aseguramos que siempre buscamos sin guion
+  const cleanLevel = level ? level.replace('-', '') : '';
+  const config = COURSE_CONFIG[cleanLevel];
   
-  // Seguridad: Si el nivel no existe, no renderizamos nada o mostramos error
   if (!config) {
-    container.innerHTML = '<p style="color:red">Error: Nivel no asignado. Contacta al profesor.</p>';
+    container.style.display = 'none';
     return;
   }
 
-  let html = `<div class="card" style="border-color: var(--accent-primary);">
-                <h2 style="font-size:1.2rem; margin-bottom:1.5rem;">🚀 Tu Ruta: ${config.title}</h2>
-                <div style="display:flex; flex-direction:column; gap:0.8rem;">`;
+  container.style.display = 'block';
+
+  let html = `<div class="card border-l-4 border-blue-500 bg-white p-6 shadow-sm">
+                <h2 class="text-xl font-bold mb-4 text-slate-800">🚀 Tu Ruta: ${config.title}</h2>
+                <div class="flex flex-col gap-3">`;
 
   config.weeks.forEach(week => {
     const isLocked = !week.active;
-    const icon = isLocked ? '🔒' : '🟢';
-    
-    // Generamos el link correcto: /aleman1/week1 o /aleman2/week1
-    // Extraemos el número de semana del ID (ej: a1-w1 -> 1)
-    const weekNum = week.id.split('-w')[1];
-    const link = `/${config.path}/week${weekNum}`;
+    // Regex seguro para sacar el número
+    const weekNum = week.id.match(/\d+/)[0]; 
+    const link = `/learn/${config.path}/week${weekNum}`; // Usamos la nueva ruta dinámica
 
     const content = `
-      <div style="display:flex; align-items:center; justify-content:space-between; width:100%;">
-        <span>${icon} ${week.title}</span>
-        ${!isLocked ? '<span class="status-badge">IR A CLASE →</span>' : ''}
+      <div class="flex items-center justify-between w-full p-3 rounded-lg ${isLocked ? 'bg-slate-50 text-slate-400' : 'bg-blue-50 text-blue-900 hover:bg-blue-100 transition-colors'}">
+        <span class="font-medium flex items-center gap-2">
+          ${isLocked ? '🔒' : '🟢'} ${week.title}
+        </span>
+        ${!isLocked ? '<span class="text-xs font-bold uppercase tracking-wider">Ir a clase →</span>' : ''}
       </div>
     `;
 
-    html += `
-      <div class="card" style="padding:1rem; margin-bottom:0; ${isLocked ? 'opacity:0.4;' : 'cursor:pointer; border-color:var(--border-color);'}">
-        ${!isLocked ? '<a href="' + link + '" style="text-decoration:none; color:inherit; display:block;">' + content + '</a>' : content}
-      </div>
-    `;
+    html += isLocked ? content : `<a href="${link}" class="block no-underline">${content}</a>`;
   });
 
   html += '</div></div>';

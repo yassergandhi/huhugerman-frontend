@@ -1,0 +1,91 @@
+---
+// src/components/LessonUI.astro
+const { title, description, level, week } = Astro.props;
+---
+<section class="container">
+  <a href={`/${level}`} class="btn-outline" style="display: inline-flex; align-items: center; gap: 0.5rem; margin-bottom: 2rem; text-decoration: none;">
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+    <span>Volver al Mapa</span>
+  </a>
+
+  <div style="border-bottom: 1px solid var(--border-color); padding-bottom: 1.5rem; margin-bottom: 2rem;">
+    <span style="color: var(--accent-primary); font-family: monospace; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 2px;">
+      {level} / {week}
+    </span>
+    <h1 style="font-size: 2.5rem; margin-top: 0.5rem; color: var(--text-primary);">{title}</h1>
+    <p style="font-size: 1.1rem; color: var(--text-secondary); font-style: italic;">
+      {description}
+    </p>
+  </div>
+
+  <div class="card">
+    <form method="POST" action="/api/submit">
+      <input type="hidden" name="level" value={level} />
+      <input type="hidden" name="context" value={title} />
+      
+      <div>
+        <label>Dein Text auf Deutsch:</label>
+        <textarea
+          name="text"
+          rows="6"
+          placeholder="Escribe aquí tu ejercicio..."
+          style="font-size: 1.1rem;"
+        ></textarea>
+      </div>
+
+      <button type="submit" class="btn" style="width: 100%; display: flex; justify-content: center; align-items: center; gap: 0.5rem;">
+        <span>Prüfen (Corregir)</span>
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5L20 7"/></svg>
+      </button>
+    </form>
+    
+    <div id="feedback-container" style="display: none; margin-top: 2rem;">
+        </div>
+  </div>
+  
+  <script>
+    // El script se mantiene igual, solo asegúrate de que inyecte 
+    // HTML con clases 'feedback-card' en lugar de 'bg-green-50'
+    const form = document.querySelector('form');
+    const feedbackContainer = document.getElementById('feedback-container');
+    const submitButton = form.querySelector('button[type="submit"]');
+    const buttonText = submitButton.querySelector('span');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const originalText = buttonText.innerText;
+      buttonText.innerText = "Pensando... 🧠";
+      submitButton.disabled = true;
+      feedbackContainer.style.display = 'none';
+      feedbackContainer.innerHTML = '';
+
+      try {
+        const formData = new FormData(form);
+        const response = await fetch('/api/submit', { method: 'POST', body: formData });
+        const data = await response.json();
+
+        if (!response.ok) throw new Error(data.error || 'Error en el servidor');
+
+        // INYECCIÓN CON ESTILOS DARK MODE
+        feedbackContainer.innerHTML = `
+          <div class="feedback-card">
+            <h3>Corrección del Profesor:</h3>
+            <div style="line-height: 1.8;">${data.correction}</div>
+          </div>
+        `;
+        feedbackContainer.style.display = 'block';
+
+      } catch (error) {
+        feedbackContainer.innerHTML = `
+          <div style="background: rgba(255, 0, 0, 0.1); border: 1px solid red; color: #ff6b6b; padding: 1rem; border-radius: 8px;">
+            Ocurrió un error: ${error.message}
+          </div>
+        `;
+        feedbackContainer.style.display = 'block';
+      } finally {
+        buttonText.innerText = originalText;
+        submitButton.disabled = false;
+      }
+    });
+  </script>
+</section>

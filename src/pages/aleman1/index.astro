@@ -1,26 +1,8 @@
 ---
-import Layout from '../../layouts/Layout.astro';
-
-// Simulamos disponibilidad
-const weeks = [
-  { id: 1, title: 'Woche 1: Vorstellen', active: true },
-  { id: 2, title: 'Woche 2: Zahlen & Uhrzeit', active: false },
-  { id: 3, title: 'Woche 3: Essen & Trinken', active: false }
-];
+import Layout from '@layouts/Layout.astro';
+import CourseList from '@components/CourseList.astro';
 ---
-<Layout title="Alemán 1">
-  <div class="container">
-    <a href="/" style="font-size:0.9rem;">← Volver al inicio</a>
-    <h1>Alemán 1: Ruta de Aprendizaje</h1>
-    
-    <div class="grid">
-      {weeks.map((week) => (
-        <div class={`card ${!week.active ? 'locked' : ''}`}>
-          <h3>{week.title}</h3>
-          <p>{week.active ? '🟢 Disponible' : '🔒 Próximamente'}</p>
-          {week.active && <a href="/aleman1/week1" class="btn">Iniciar Lección</a>}
-        </div>
-      ))}
-    </div>
-  </div>
+
+<Layout title="Alemán 1: Fundamentos | Huhugerman">
+  <CourseList levelId="aleman1" />
 </Layout>

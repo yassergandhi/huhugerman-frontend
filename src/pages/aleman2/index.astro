@@ -1,28 +1,8 @@
 ---
-import Layout from '../../layouts/Layout.astro';
-
-// Configuración temporal para Alemán 2
-const weeks = [
-  { id: 1, title: 'Woche 1: Nivel Intermedio', active: true }, // Apunta a week1.astro que ya tienes
-  { id: 2, title: 'Woche 2: Próximamente', active: false },
-  { id: 3, title: 'Woche 3: Próximamente', active: false }
-];
+import Layout from '@layouts/Layout.astro';
+import CourseList from '@components/CourseList.astro';
 ---
 
-<Layout title="Alemán 2">
-  <div class="container">
-    <a href="/dashboard" style="font-size:0.9rem;">← Volver al Dashboard</a>
-    <h1>Alemán 2: Ruta de Aprendizaje</h1>
-    
-    <div class="grid">
-      {weeks.map((week) => (
-        <div class={`card ${!week.active ? 'locked' : ''}`}>
-          <h3>{week.title}</h3>
-          <p>{week.active ? '🟢 Disponible' : '🔒 Próximamente'}</p>
-          {/* Nota: Aquí enlazamos a /aleman2/week1 */}
-          {week.active && <a href="/aleman2/week1" class="btn">Iniciar Lección</a>}
-        </div>
-      ))}
-    </div>
-  </div>
+<Layout title="Alemán 2: Intermedio | Huhugerman">
+  <CourseList levelId="aleman2" />
 </Layout>

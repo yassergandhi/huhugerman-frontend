@@ -1,0 +1,69 @@
+---
+import { COURSE_CONFIG } from '@lib/roadmap';
+
+interface Props {
+  levelId: string;
+}
+
+const { levelId } = Astro.props;
+const config = COURSE_CONFIG[levelId];
+
+if (!config) throw new Error(`Nivel no encontrado: ${levelId}`);
+---
+
+<div class="container" style="padding-top: 1rem;">
+  <header style="margin-bottom: 2rem; text-align: center;">
+    <h1 style="font-size: 2rem; margin-bottom: 0.5rem;">{config.title}</h1>
+    <p style="font-size: 0.9rem; opacity: 0.8;">Tu ruta de aprendizaje paso a paso</p>
+  </header>
+
+  <div class="card" style="padding: 0; overflow: hidden; border: 1px solid var(--border-color);">
+    {config.weeks.map((week, index) => {
+      const isLocked = !week.active;
+      const weekNumber = week.id.match(/\d+/)?.[0];
+      const link = `/learn/${config.path}/week${weekNumber}`;
+      
+      return (
+        <div style="border-bottom: 1px solid var(--border-color);">
+          {isLocked ? (
+            /* ESTADO BLOQUEADO */
+            <div class="locked" style="padding: 1.5rem; display: flex; align-items: center; gap: 1rem;">
+              <span style="font-size: 1.5rem; opacity: 0.5;">🔒</span>
+              <div>
+                <span style="font-size: 0.7rem; text-transform: uppercase; color: var(--text-secondary); display: block; letter-spacing: 1px;">
+                  Woche {weekNumber}
+                </span>
+                <h3 style="font-size: 1rem; margin: 0; color: var(--text-secondary); text-shadow: none;">
+                  {week.title}
+                </h3>
+              </div>
+            </div>
+          ) : (
+            /* ESTADO ACTIVO (Disponible) */
+            <a href={link} style="text-decoration: none; display: block; padding: 1.5rem; background: rgba(46, 249, 158, 0.03); transition: background 0.2s;">
+              <div style="display: flex; align-items: center; gap: 1rem;">
+                <span style="font-size: 1.5rem; text-shadow: 0 0 10px var(--accent-primary);">🟢</span>
+                
+                <div style="flex: 1;">
+                  <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.2rem;">
+                    <span style="font-size: 0.7rem; text-transform: uppercase; color: var(--accent-primary); letter-spacing: 1px; font-weight: bold;">
+                      Woche {weekNumber}
+                    </span>
+                    <span class="status-badge" style="font-size: 0.6rem; padding: 2px 6px;">ACTIVA</span>
+                  </div>
+                  <h3 style="font-size: 1.1rem; margin: 0; color: var(--text-primary); text-shadow: none;">
+                    {week.title}
+                  </h3>
+                </div>
+
+                <div style="color: var(--accent-primary);">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+                </div>
+              </div>
+            </a>
+          )}
+        </div>
+      );
+    })}
+  </div>
+</div>
