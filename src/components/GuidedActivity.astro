@@ -1,8 +1,14 @@
 ---
 // src/components/GuidedActivity.astro
 import { getBackLink } from '@lib/navigation';
+
+// Aseguramos tipado básico para las props
 const { lesson } = Astro.props;
 const backLink = getBackLink(lesson);
+
+// Fallback seguro para el ID de la semana y nivel si no vienen explícitos
+const weekId = lesson.weekId || lesson.id || 'w01'; 
+const levelId = lesson.level || 'aleman1';
 ---
 
 <div class="container">
@@ -17,29 +23,25 @@ const backLink = getBackLink(lesson);
 
   <h1>{lesson.title}</h1>
 
-<!-- ✅ Mensaje estático sobre naturaleza formativa (SIEMPRE visible) -->
-<div class="card activity-notice">
-<h3>ℹ️ Actividad formativa</h3>
-<p>
-Tu entrega es lo que cuenta. El feedback te ayuda a mejorar y la entrega se traduce después en la calificación institucional.
-</p>
-
-
-</div>
-
+  <div class="card activity-notice">
+    <h3>ℹ️ Actividad formativa</h3>
+    <p>
+      Tu entrega es lo que cuenta. El feedback te ayuda a mejorar y la entrega se traduce después en la calificación institucional.
+    </p>
+  </div>
 
   <div class="card">
     <h3>📝 Instrucciones de la Actividad</h3>
     <p>{lesson.instructions.intro}</p>
     <ul>
-      {lesson.instructions.grammarReminder.map(item => (
+      {lesson.instructions.grammarReminder.map((item: string) => (
         <li>{item}</li>
       ))}
     </ul>
   </div>
 
   {lesson.source?.type === 'youtube' && (
-    <div class="card" style="padding:0;">
+    <div class="card" style="padding:0; overflow:hidden;">
       <div style="position:relative; padding-bottom:56.25%;">
         <iframe
           src={lesson.source.embedUrl}
@@ -50,33 +52,46 @@ Tu entrega es lo que cuenta. El feedback te ayuda a mejorar y la entrega se trad
     </div>
   )}
 
-  <form id="activity-form" class="card">
-    <!-- ✅ Campo obligatorio para nombre completo (validado en JS) -->
-    <div style="margin-bottom: 1.5rem;">
-      <label for="student-fullname">Nombre completo *</label>
-      <input 
-        type="text" 
-        id="student-fullname" 
-        required 
-        minlength="3"
-        placeholder="Ej: Yasser Gandhi Hernández Esquivel"
-        style="width: 100%; padding: 0.8rem; border: 1px solid var(--border-color); border-radius: 8px;"
-      />
-      <p style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.3rem;">
-        Este nombre aparecerá en tus registros académicos
-      </p>
+  <form id="activity-form" data-level={levelId} data-week={weekId}>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
+      <div>
+        <label for="firstName" style="display:block; font-weight:bold; margin-bottom:0.5rem;">Nombre(s)*</label>
+        <input 
+          type="text" 
+          id="firstName" 
+          name="firstName" 
+          required
+          placeholder="Ej. Juan"
+          style="width:100%; padding:0.8rem; border:1px solid #ddd; border-radius:8px;"
+        />
+      </div>
+      <div>
+        <label for="lastName" style="display:block; font-weight:bold; margin-bottom:0.5rem;">Apellido(s)*</label>
+        <input 
+          type="text" 
+          id="lastName" 
+          name="lastName" 
+          required
+          placeholder="Ej. Pérez"
+          style="width:100%; padding:0.8rem; border:1px solid #ddd; border-radius:8px;"
+        />
+      </div>
     </div>
 
     <h2>{lesson.activity.title}</h2>
-    {lesson.activity.parts.map(part => (
+    
+    {lesson.activity.parts.map((part: any, index: number) => (
       <div style="margin-bottom:1.5rem;">
-        <label for={part.id}>{part.label}</label>
+        <label for={part.id} class="activity-label">{part.label}</label>
         <p style="font-size:0.8rem; opacity:.7;">{part.help}</p>
         <textarea
           id={part.id}
-          rows={part.rows}
+          name={part.id}
+          data-label={part.label} 
+          rows={part.rows || 4}
           placeholder={part.placeholder}
           required
+          style="width: 100%; padding: 0.8rem; border: 1px solid #ddd; border-radius: 8px; font-family: inherit;"
         />
       </div>
     ))}
@@ -86,7 +101,6 @@ Tu entrega es lo que cuenta. El feedback te ayuda a mejorar y la entrega se trad
     </button>
   </form>
 
-  <!-- ✅ Contenedor de feedback (inicialmente oculto) -->
   <div
     id="feedback-container"
     class="card"
@@ -94,7 +108,7 @@ Tu entrega es lo que cuenta. El feedback te ayuda a mejorar y la entrega se trad
   >
     <h3 style="margin-top:0;">📘 Feedback del Profesor</h3>
     <div id="feedback-content"></div>
-    <!-- ✅ Mensaje de entrega aparece SOLO tras feedback exitoso -->
+    
     <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px dashed var(--border-color);">
       <p style="font-weight: bold; color: var(--accent-primary); display: flex; align-items: center; gap: 0.5rem;">
         ✅ <span>Actividad entregada</span>
@@ -107,86 +121,91 @@ Tu entrega es lo que cuenta. El feedback te ayuda a mejorar y la entrega se trad
 </div>
 
 <script>
-const form = document.getElementById('activity-form');
-const btn = document.getElementById('submit-btn');
-const feedbackContainer = document.getElementById('feedback-container');
-const feedbackContent = document.getElementById('feedback-content');
+  // Script del Cliente
+  const form = document.getElementById('activity-form') as HTMLFormElement;
+  const btn = document.getElementById('submit-btn') as HTMLButtonElement;
+  const feedbackContainer = document.getElementById('feedback-container');
+  const feedbackContent = document.getElementById('feedback-content');
 
-form.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  
-  // ✅ Validación y sanitización del nombre
-  const studentNameInput = document.getElementById('student-fullname');
-  const studentName = studentNameInput.value.trim();
-  
-  if (studentName.length < 3) {
-    alert('⚠️ Por favor ingresa tu nombre completo (mínimo 3 caracteres)');
-    studentNameInput.focus();
-    return;
-  }
-  
-  // Validación de partes de la actividad
-  const part1 = document.getElementById('part1')?.value.trim() || '';
-  const part2 = document.getElementById('part2')?.value.trim() || '';
-  const part3 = document.getElementById('part3')?.value.trim() || '';
-  
-  if (!part1 && !part2 && !part3) {
-    alert('⚠️ Escribe al menos una respuesta antes de enviar.');
-    return;
-  }
-  
-  btn.disabled = true;
-  btn.innerText = 'Enviando...';
-  
-  // Construir texto completo con estructura clara
-  const text = `
-[PARTE 1]
-${part1}
+  if (form) {
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      // 1. Obtener datos básicos
+      const firstNameInput = document.getElementById('firstName') as HTMLInputElement;
+      const lastNameInput = document.getElementById('lastName') as HTMLInputElement;
+      
+      const firstName = firstNameInput.value.trim();
+      const lastName = lastNameInput.value.trim();
+      const level = form.dataset.level; // Leído desde el HTML
+      const week = form.dataset.week;   // Leído desde el HTML
 
-[PARTE 2]
-${part2}
+      // Validación simple
+      if (firstName.length < 2 || lastName.length < 2) {
+        alert('⚠️ Por favor ingresa tu nombre y apellido completos.');
+        return;
+      }
 
-[PARTE 3]
-${part3}
-`.trim();
-  
-  // ✅ Payload con datos validados y sanitizados
-  const payload = {
-    text,
-    studentName, // Nombre limpio y validado
-    kurs: 'A1',  // TODO: Obtener dinámicamente de lesson.kurs
-    woche: 1     // TODO: Obtener dinámicamente de lesson.woche
-  };
-  
-  try {
-    const response = await fetch('/api/submit', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      // 2. Recolección dinámica del contenido (independiente del número de partes)
+      let content = "";
+      const textareas = form.querySelectorAll('textarea');
+      let hasContent = false;
+
+      textareas.forEach((area) => {
+        const value = (area as HTMLTextAreaElement).value.trim();
+        if (value) {
+          hasContent = true;
+          // Usamos el label del atributo data, o el ID como fallback
+          const label = area.getAttribute('data-label') || area.id.toUpperCase();
+          content += `[${label}]\n${value}\n\n`;
+        }
+      });
+
+      if (!hasContent) {
+        alert('⚠️ Escribe al menos una respuesta antes de enviar.');
+        return;
+      }
+
+      btn.disabled = true;
+      btn.innerText = 'Enviando...';
+
+      // 3. Construcción del Payload (Coincide con SubmissionInputSchema)
+      const payload = {
+        firstName,
+        lastName,
+        level,   // Ej: 'aleman1'
+        week,    // Ej: 'w01'
+        content: content.trim(),
+        email: "" // Opcional por ahora
+      };
+
+      try {
+        const response = await fetch('/api/submit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        
+        const result = await response.json();
+        
+        if (!response.ok || (result.error)) {
+          throw new Error(result.error || 'Error en el servidor');
+        }
+        
+        // 4. Mostrar Feedback
+        if (feedbackContent && feedbackContainer) {
+          feedbackContent.innerHTML = result.feedback || "Respuesta registrada.";
+          feedbackContainer.style.display = 'block';
+          feedbackContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+        
+      } catch (err: any) {
+        console.error('Error:', err);
+        alert(`❌ Error: ${err.message || 'No se pudo enviar la actividad'}`);
+      } finally {
+        btn.disabled = false;
+        btn.innerText = 'Enviar respuestas';
+      }
     });
-    
-    const result = await response.json();
-    
-    if (!response.ok || !result.success) {
-      throw new Error(result.error || 'Error desconocido');
-    }
-    
-    // ✅ Mostrar feedback + mensaje de entrega
-    feedbackContent.innerHTML = result.feedback;
-    feedbackContainer.style.display = 'block';
-    
-    // Scroll suave al feedback
-    feedbackContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    
-    // Reset formulario (opcional)
-    // form.reset();
-    
-  } catch (err) {
-    console.error('Error:', err);
-    alert(`❌ Error: ${err.message || 'No se pudo enviar la actividad'}`);
-  } finally {
-    btn.disabled = false;
-    btn.innerText = 'Enviar respuestas';
   }
-});
 </script>

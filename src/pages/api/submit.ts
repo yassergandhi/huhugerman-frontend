@@ -1,77 +1,55 @@
 // src/pages/api/submit.ts
 import type { APIRoute } from 'astro';
-import { WochenKontextSchema } from '@/lib/domain/schemas/week-context.schema';
+import { SubmissionInputSchema } from '@/lib/domain/schemas/submission.schema';
+import { saveSubmission } from '@/lib/services/persistence/submissions';
 import { buildPedagogicalPrompt } from '@/lib/ai/prompt-builder';
-// TODO: Reemplazar mock con proveedor real cuando esté listo
-// Por ahora: mock para garantizar flujo funcional sin dependencia de IA
-// async function callAIClient(prompt: string): Promise<string> { ... }
+// import { DeepSeekClient } from '@/lib/ai/providers/deepseek'; // Descomentar cuando integres el cliente real
 
 export const POST: APIRoute = async ({ request }) => {
   try {
-    const body = await request.json();
-    const { text, studentName, kurs, woche } = body;
-    
-    if (!text?.trim()) {
-      return new Response(JSON.stringify({ error: 'Texto vacío' }), { status: 400 });
+    const rawBody = await request.json();
+
+    // 1. Validación Estricta con Zod (Fails fast)
+    const parseResult = SubmissionInputSchema.safeParse(rawBody);
+
+    if (!parseResult.success) {
+      return new Response(JSON.stringify({ 
+        error: "Datos inválidos", 
+        details: parseResult.error.format() 
+      }), { status: 400 });
     }
+
+    const data = parseResult.data;
+
+    // 2. Orquestación del Feedback (Simulada por ahora, lista para conectar)
+    // const prompt = await buildPedagogicalPrompt(data.level, data.week, data.content);
+    // const aiFeedback = await DeepSeekClient.evaluate(prompt); 
     
-    if (!studentName?.trim()) {
-      return new Response(JSON.stringify({ error: 'Nombre requerido' }), { status: 400 });
-    }
-    
-    // Cargar contexto pedagógico (hardcoded por ahora)
-    const context = await getWeekContext(kurs, woche);
-    
-    // Validar contexto con Zod
-    const validatedContext = WochenKontextSchema.parse(context);
-    
-    // Generar prompt con contexto validado
-    const prompt = buildPedagogicalPrompt(text, validatedContext, studentName);
-    
-    // TODO: Reemplazar mock con llamada real a proveedor IA
-    // const feedback = await callAIClient(prompt);
-    const feedback = `
-      <p><strong>Feedback simulado (Semana ${woche} - ${kurs})</strong></p>
-      <p>Tu texto muestra comprensión básica de los saludos y presentaciones.</p>
-      <ul>
-        <li>✅ Uso correcto de "Ich heiße..."</li>
-        <li>⚠️ Revisa la posición del verbo en frases largas</li>
-      </ul>
-      <p>¡Sigue practicando! Este feedback será generado por IA en producción.</p>
-    `;
-    
-    // Guardar submission con nombre validado
-    await saveSubmission({
-      text,
-      studentName: studentName.trim(), // Sanitización básica
-      kurs,
-      woche,
-      feedback,
-      pedagogicalContext: validatedContext,
+    // Mock temporal para mantener funcionalidad mientras conectas el prompt-builder real
+    const aiFeedback = `Feedback preliminar para ${data.firstName}: Buen trabajo con el texto. (IA pendiente de conexión final)`;
+
+    // 3. Persistencia (Guardamos nombre y apellido por separado)
+    const savedRecord = await saveSubmission({
+      firstName: data.firstName,
+      lastName: data.lastName,
+      email: data.email,
+      level: data.level,
+      week: data.week,
+      content: data.content,
+      aiFeedback: aiFeedback
     });
-    
-    return new Response(JSON.stringify({ success: true, feedback }), { status: 200 });
-    
+
+    if (!savedRecord) {
+      throw new Error("Error al guardar en base de datos");
+    }
+
+    return new Response(JSON.stringify({
+      message: "Actividad recibida correctamente",
+      feedback: aiFeedback
+    }), { status: 200 });
+
   } catch (error) {
-    console.error('Submit error:', error);
-    return new Response(JSON.stringify({ 
-      error: error instanceof Error ? error.message : 'Error interno' 
-    }), { status: 500 });
+    console.error("Error en submit:", error);
+    return new Response(JSON.stringify({ error: "Error interno del servidor" }), { status: 500 });
   }
 };
-
-// ✅ Corregido: función async con import dinámico
-async function getWeekContext(kurs: string, woche: number) {
-  // TODO: Mapear dinámicamente según roadmap cuando esté listo
-  if (kurs === 'A1' && woche === 1) {
-    const module = await import('@/lib/domain/weeks/a1-woche-01');
-    return module.A1_WOCHE_01;
-  }
-  throw new Error(`Contexto no encontrado para ${kurs} semana ${woche}`);
-}
-
-// TODO: Mover a lib/services/persistence/submissions.ts cuando esté listo
-async function saveSubmission(data: any) {
-  // Implementación temporal para pruebas
-  console.log('Submission guardada (mock):', data);
-}
