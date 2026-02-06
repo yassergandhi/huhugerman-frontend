@@ -5,7 +5,7 @@ export const COURSE_CONFIG = {
     path: 'aleman1',
     weeks: [
       { id: 'a1-w1', title: 'Woche 1: Begrüßungen', active: true },
-      { id: 'a1-w2', title: 'Woche 2: Zahlen & Uhrzeit', active: false },
+      { id: 'a1-w2', title: 'Woche 2: W-Fragen und Zahlen bis 12', active: true },
       { id: 'a1-w3', title: 'Woche 3: Essen & Trinken', active: false },
       { id: 'a1-w4', title: 'Woche 4: Freizeit', active: false },
       { id: 'a1-w5', title: 'Woche 5: Familie', active: false },
@@ -21,7 +21,7 @@ export const COURSE_CONFIG = {
     path: 'aleman2',
     weeks: [
       { id: 'a2-w1', title: 'Woche 1: Konrads Geschichte', active: true },
-      { id: 'a2-w2', title: 'Woche 2: Reisen & Urlaub', active: false },
+      { id: 'a2-w2', title: 'Woche 2: Tagesablauf und Uhrzeit', active: true },
       { id: 'a2-w3', title: 'Woche 3: Arbeitswelt', active: false },
       { id: 'a2-w4', title: 'Woche 4: Gesundheit', active: false },
       { id: 'a2-w5', title: 'Woche 5: Medien & Tech', active: false },
