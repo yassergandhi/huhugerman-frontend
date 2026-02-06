@@ -111,62 +111,73 @@ import Layout from '../../layouts/Layout.astro';
     const btn = document.getElementById('submit-btn');
 
     const loadingMessages = [
-      "Analysiere Uhrzeiten...",
-      "Prüfe trennbare Verben...",
-      "Korrigiere Sätze...",
+      "Analysiere Zeitangaben...",
+      "Überprüfe Grammatik...",
       "Erstelle Feedback..."
     ];
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
-      btn.disabled = true;
+      
+      // PRIMERO: Verificar que el usuario está autenticado
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      
+      if (authError || !user) {
+        alert('⚠️ Error de autenticación. Por favor, inicia sesión nuevamente.');
+        window.location.href = '/';
+        return;
+      }
 
+      // Estado de carga UI
+      btn.disabled = true;
       let msgIndex = 0;
       btn.innerHTML = `<span class="spinner"></span> ${loadingMessages[0]}`;
-
+      
       const interval = setInterval(() => {
         msgIndex = (msgIndex + 1) % loadingMessages.length;
         btn.innerHTML = `<span class="spinner"></span> ${loadingMessages[msgIndex]}`;
       }, 3500);
 
-      const { data: { user } } = await supabase.auth.getUser();
+      // Construcción del Prompt para la IA
+      const text = `[KONTEXT: Deutsch A2. Thema: Tagesablauf. Grammatik: um + Uhrzeit.]
 
-      const text = `[THEMA: Tagesablauf, Uhrzeit, Wochentage]
-
-[VIDEO]
+[TEIL 1: TAGESABLAUF]
 ${document.getElementById('part1').value}
 
-[MEIN TAG]
-${document.getElementById('part2').value}
-
-[REFLEXION]
-${document.getElementById('part3').value}`;
+[TEIL 2: REFLEXION]
+${document.getElementById('part2').value}`;
 
       try {
+        // 1. Obtener Feedback de la API
         const response = await fetch('/api/submit', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ text })
         });
+        
         const result = await response.json();
         clearInterval(interval);
 
         if (!result.success) throw new Error(result.error);
 
+        // 2. Guardar en Supabase (UPSERT)
+        // NOTA: session_id es 'a2-w2' para que no se mezcle con otras semanas
         const { error: dbError } = await supabase.from('submissions').upsert({
           user_id: user.id,
           user_email: user.email,
-          session_id: 'a2-w1-time',
+          session_id: 'a2-w2',
           content_text: text,
           ai_feedback: result.feedback
         }, { onConflict: 'user_id,session_id' });
 
         if (dbError) throw dbError;
 
+        // 3. Redirigir al Dashboard con el feedback
         window.location.href = `/dashboard?new_feedback=${encodeURIComponent(result.feedback)}`;
 
       } catch (err) {
         clearInterval(interval);
+        console.error(err);
         alert("⚠️ Error: " + err.message);
         btn.disabled = false;
         btn.innerText = "Reintentar";
