@@ -2,39 +2,36 @@
 import Layout from '../../layouts/Layout.astro';
 import { supabase } from '../../lib/supabase';
 
-/* --- 1. LÓGICA DEL SERVIDOR (Server Side) --- */
+/* --- LÓGICA DEL SERVIDOR --- */
 const { cookies, redirect } = Astro;
 
 const accessToken = cookies.get("sb-access-token");
 const refreshToken = cookies.get("sb-refresh-token");
 
+// Cambiado a "/" porque tu login está en la raíz, no en /signin
 if (!accessToken || !refreshToken) {
-  return redirect("/signin");
+  return redirect("/");
 }
 
-// Validar sesión con Supabase
 const { data: { session }, error } = await supabase.auth.setSession({
   access_token: accessToken.value,
   refresh_token: refreshToken.value,
 });
 
 if (error || !session) {
-  return redirect("/signin");
+  return redirect("/");
 }
 
-// Cargar envío previo (si existe) para no perder datos
+// Cargar envío previo
 const { data: submission } = await supabase
   .from('submissions')
   .select('content_text')
-  .eq('session_id', 'week2') // DEBE COINCIDIR CON LA DB
+  .eq('session_id', 'week2')
   .eq('user_id', session.user.id)
   .maybeSingle();
 
-// Separar el texto guardado en las 3 partes
 const fullText = submission?.content_text || "";
-let part1 = "";
-let part2 = "";
-let part3 = "";
+let part1 = "", part2 = "", part3 = "";
 
 if (fullText) {
   const parts = fullText.split(/\[.*?\]/); 
@@ -55,164 +52,66 @@ if (fullText) {
     <h1>Woche 2: Tagesablauf, Uhrzeit und Wochentage</h1>
 
     <div class="card" style="border-left: 4px solid var(--accent-primary); background: rgba(46, 249, 158, 0.05);">
-      <h3 style="margin-top:0; font-size: 1.1rem;">📝 Instrucciones de la Actividad</h3>
-      <p style="font-size: 0.95rem; color: var(--text-primary); margin-bottom: 1rem;">
-        En este video escucharás <b>alemán real</b> en entrevistas de la calle.
-        El tema central es el <b>Tagesablauf</b> (rutina diaria).
-      </p>
-      <div style="background: rgba(0,0,0,0.25); padding: 1rem; border-radius: 8px; font-size: 0.85rem; margin-top:1rem;">
-        <b style="color: var(--accent-secondary);">💡 Recordatorio rápido</b>
-        <ul style="margin: 0.5rem 0 0 1.2rem; padding: 0; color: var(--text-secondary);">
-          <li><b>um</b> 7 Uhr / um halb acht</li>
-          <li><b>am</b> Montag</li>
-          <li>Ich <b>stehe</b> um 7 Uhr <b>auf</b>.</li>
-        </ul>
-      </div>
+      <h3 style="margin-top:0; font-size: 1.1rem;">📝 Instrucciones</h3>
+      <p style="font-size: 0.95rem;">Escucha el video y concéntrate en las horas y acciones diarias.</p>
     </div>
 
     <div class="card" style="margin-bottom: 2rem; text-align:center;">
-      <iframe
-        width="100%"
-        height="315"
-        src="https://www.youtube.com/embed/R4tlAm2XPiw?si=d2YZpneXKxeLyYL8"
-        title="YouTube video player"
-        frameborder="0"
-        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-        allowfullscreen
-        style="max-width: 600px;">
-      </iframe>
+      <iframe width="100%" height="315" src="https://www.youtube.com/embed/R4tlAm2XPiw" style="max-width:600px;" frameborder="0" allowfullscreen></iframe>
     </div>
 
     <form id="activity-form" class="card">
-      <h2 style="font-size: 1.2rem; margin-bottom: 1.5rem;">Deine Aufgaben</h2>
-
       <div style="margin-bottom: 1.5rem;">
-        <label>1. Tagesablauf einer Person aus dem Video</label>
-        <p style="font-size: 0.8rem; opacity: 0.7; margin-top: -5px;">
-          4–5 Sätze mit <b>um + Uhrzeit</b>.
-        </p>
-        <textarea
-          id="part1"
-          rows="4"
-          placeholder="Die Person steht um 6 Uhr auf..."
-        >{part1}</textarea>
+        <label>1. Tagesablauf einer Person</label>
+        <textarea id="part1" rows="4">{part1}</textarea>
       </div>
-
       <div style="margin-bottom: 1.5rem;">
         <label>2. Dein typischer Tag</label>
-        <p style="font-size: 0.8rem; opacity: 0.7; margin-top: -5px;">
-          Nutze <b>am + Tag</b> y verbos separables.
-        </p>
-        <textarea
-          id="part2"
-          rows="4"
-          placeholder="Am Montag stehe ich um sieben Uhr auf..."
-        >{part2}</textarea>
+        <textarea id="part2" rows="4">{part2}</textarea>
       </div>
-
       <div style="margin-bottom: 1.5rem;">
-        <label>3. Reflexión breve</label>
-        <p style="font-size: 0.8rem; opacity: 0.7; margin-top: -5px;">
-          Alemán o español.
-        </p>
-        <textarea
-          id="part3"
-          rows="4"
-          placeholder="Ich finde interessant, dass..."
-        >{part3}</textarea>
+        <label>3. Reflexión</label>
+        <textarea id="part3" rows="4">{part3}</textarea>
       </div>
-
-      <button type="submit" id="submit-btn" class="btn" style="width:100%;">
-        Absenden & Feedback erhalten
-      </button>
-      <p id="status-msg" style="text-align:center; margin-top:1rem;"></p>
+      <button type="submit" id="submit-btn" class="btn" style="width:100%;">Absenden</button>
     </form>
   </div>
 </Layout>
 
 <script type="module">
     import { supabase } from '../../lib/supabase';
-
     const form = document.getElementById('activity-form');
     const btn = document.getElementById('submit-btn');
-
-    const loadingMessages = [
-      "Analysiere Uhrzeiten...",
-      "Prüfe trennbare Verben...",
-      "Korrigiere Sätze...",
-      "Erstelle Feedback..."
-    ];
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       btn.disabled = true;
+      btn.innerText = "Analizando...";
 
-      // Animación de carga
-      let msgIndex = 0;
-      btn.innerHTML = `<span class="spinner"></span> ${loadingMessages[0]}`;
-      const interval = setInterval(() => {
-        msgIndex = (msgIndex + 1) % loadingMessages.length;
-        btn.innerHTML = `<span class="spinner"></span> ${loadingMessages[msgIndex]}`;
-      }, 3500);
-
-      // Obtener usuario (Cliente)
       const { data: { user } } = await supabase.auth.getUser();
-
-      if (!user) {
-        clearInterval(interval);
-        alert("Sesión expirada. Recarga la página.");
-        return;
-      }
-
-      // Recopilar datos
-      const t1 = document.getElementById('part1').value;
-      const t2 = document.getElementById('part2').value;
-      const t3 = document.getElementById('part3').value;
-
-      const text = `[THEMA: Tagesablauf, Uhrzeit, Wochentage]
-
-[VIDEO]
-${t1}
-
-[MEIN TAG]
-${t2}
-
-[REFLEXION]
-${t3}`;
+      const text = `[VIDEO]\n${document.getElementById('part1').value}\n\n[MEIN TAG]\n${document.getElementById('part2').value}\n\n[REFLEXION]\n${document.getElementById('part3').value}`;
 
       try {
-        // 1. Enviar a la IA
-        const response = await fetch('/api/submit', {
+        const res = await fetch('/api/submit', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ text })
         });
-        const result = await response.json();
+        const result = await res.json();
         
-        if (!result.success) throw new Error(result.error || "Error desconocido");
-
-        // 2. Guardar en Supabase
-        // IMPORTANTE: session_id debe ser 'week2' (Alemán 2 Semana 2)
-        const { error: dbError } = await supabase.from('submissions').upsert({
+        await supabase.from('submissions').upsert({
           user_id: user.id,
           user_email: user.email,
-          session_id: 'week2', 
+          session_id: 'week2',
           content_text: text,
           ai_feedback: result.feedback
         }, { onConflict: 'user_id,session_id' });
 
-        if (dbError) throw dbError;
-
-        clearInterval(interval);
         window.location.href = `/dashboard?new_feedback=${encodeURIComponent(result.feedback)}`;
-
       } catch (err) {
-        clearInterval(interval);
-        console.error(err);
-        alert("⚠️ Error: " + err.message);
+        alert("Error: " + err.message);
         btn.disabled = false;
         btn.innerText = "Reintentar";
       }
     });
 </script>
-

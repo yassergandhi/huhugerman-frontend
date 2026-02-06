@@ -2,42 +2,32 @@
 import Layout from '../../layouts/Layout.astro';
 import { supabase } from '../../lib/supabase';
 
-/* --- LÓGICA DEL SERVIDOR (Server Side) --- */
 const { cookies, redirect } = Astro;
-
 const accessToken = cookies.get("sb-access-token");
 const refreshToken = cookies.get("sb-refresh-token");
 
 if (!accessToken || !refreshToken) {
-  return redirect("/signin");
+  return redirect("/");
 }
 
-// Validar sesión con Supabase
-const { data: { session }, error } = await supabase.auth.setSession({
+const { data: { session } } = await supabase.auth.setSession({
   access_token: accessToken.value,
   refresh_token: refreshToken.value,
 });
 
-if (error || !session) {
-  return redirect("/signin");
-}
+if (!session) return redirect("/");
 
-// Cargar envío previo (si existe)
 const { data: submission } = await supabase
   .from('submissions')
   .select('content_text')
-  .eq('session_id', 'a1-w2') // ID específico para A1 Semana 2
+  .eq('session_id', 'a1-w2')
   .eq('user_id', session.user.id)
   .maybeSingle();
 
-// Separar el texto guardado en las partes correspondientes
 const fullText = submission?.content_text || "";
-let part1 = "";
-let part2 = "";
-let part3 = "";
+let part1 = "", part2 = "", part3 = "";
 
 if (fullText) {
-  // Separamos usando los headers que definimos al guardar
   const parts = fullText.split(/\[.*?\]/); 
   if (parts.length > 1) part1 = parts[1]?.trim() || "";
   if (parts.length > 2) part2 = parts[2]?.trim() || "";
@@ -45,173 +35,70 @@ if (fullText) {
 }
 ---
 
-<Layout title="Woche 2: W-Fragen und Zahlen bis 12">
+<Layout title="W-Fragen und Zahlen">
   <div class="container">
     <div class="navbar" style="padding: 0; border: none; margin-bottom: 1rem;">
-      <a href="/dashboard" style="color:var(--accent-primary); font-weight:bold; display: flex; align-items: center; gap: 5px;">
-        <span>←</span> Volver al Dashboard
-      </a>
+      <a href="/dashboard" style="color:var(--accent-primary); font-weight:bold;">← Dashboard</a>
     </div>
 
-    <h1>Woche 2: W-Fragen und Zahlen bis 12</h1>
+    <h1>Woche 2: W-Fragen und Zahlen</h1>
 
-    <div class="card" style="border-left: 4px solid var(--accent-primary); background: rgba(46, 249, 158, 0.05);">
-      <h3 style="margin-top:0; font-size: 1.1rem;">📝 Instrucciones de la Actividad</h3>
-      <p style="font-size: 0.95rem; color: var(--text-primary); margin-bottom: 1rem;">
-        Esta actividad está diseñada para que practiques de forma activa las <b>W-Fragen</b> y la información personal básica, tal como se trabaja en nivel A1.
-      </p>
-      <div style="background: rgba(0,0,0,0.2); padding: 1rem; border-radius: 8px; font-size: 0.85rem;">
-        <b style="color: var(--accent-secondary);">💡 Objetivo lingüístico:</b>
-        <ul style="margin: 0.5rem 0 0 1.2rem; padding: 0; color: var(--text-secondary);">
-          <li>Formular y responder <b>W-Fragen</b>: <i>Was, Wie, Wer, Wo, Woher</i></li>
-          <li>Preguntar y decir: <i>Wie ist dein Vorname? Wie ist dein Familienname? Wie ist deine Telefonnummer?</i></li>
-          <li>Usar correctamente los verbos: <b>heißen, wohnen, kommen, sein</b></li>
-          <li>Incorporar números del <b>0 al 12</b> (por ejemplo en la edad o el teléfono)</li>
-        </ul>
-      </div>
-    </div>
-    
     <div class="card" style="margin-bottom: 2rem; text-align:center;">
-      <iframe 
-        width="100%" 
-        height="315" 
-        src="https://www.youtube.com/embed/Yaelm87PTvg?si=rD9-YCZ6XxWPx-qn" 
-        title="YouTube video player" 
-        frameborder="0" 
-        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
-        referrerpolicy="strict-origin-when-cross-origin" 
-        allowfullscreen
-        style="max-width: 600px;">
-      </iframe> 
+      <iframe width="100%" height="315" src="https://www.youtube.com/embed/Yaelm87PTvg" style="max-width:600px;" frameborder="0" allowfullscreen></iframe>
     </div>
 
     <form id="activity-form" class="card">
-      <h2 style="font-size: 1.2rem; margin-bottom: 1.5rem;">Deine Aufgabe</h2>
-
       <div style="margin-bottom: 1.5rem;">
-        <label>1. Tu presentación personal:</label>
-        <p style="font-size: 0.8rem; opacity: 0.7; margin-top: -5px;">
-          Responde a las siguientes preguntas: <i>Wie heißt du? Wo wohnst du? Woher kommst du?, Wie ist dein Vorname, Familienname? Wie ist deine Telefonnumer?</i> 
-        </p>
-        <textarea 
-          id="part1" 
-          rows="3" 
-          placeholder="Ej: Hallo! Ich heiße... Ich komme aus... Ich wohne in... Meine Telefonnummer ist... Tschüss!"
-        >{part1}</textarea>
+        <label>1. Tu presentación personal</label>
+        <textarea id="part1" rows="3">{part1}</textarea>
       </div>
-      
       <div style="margin-bottom: 1.5rem;">
-        <label>2. Presenta a alguna persona del video: </label>
-        <p style="font-size: 0.8rem; opacity: 0.7; margin-top: -5px;">
-          Incluye respuestas a: <i>Wer ist das? Wie heißt er/sie? Wo wohnt er/sie? Woher kommt er/sie?</i>
-        </p>
-        <textarea 
-          id="part2" 
-          rows="3" 
-          placeholder="Das ist... Er/Sie heißt... Er/Sie kommt aus... Er/Sie wohnt in..."
-        >{part2}</textarea>
+        <label>2. Persona del video</label>
+        <textarea id="part2" rows="3">{part2}</textarea>
       </div>
-      
       <div style="margin-bottom: 1.5rem;">
-        <label>3. Reflexión del video:</label>
-        <p style="font-size: 0.8rem; opacity: 0.7; margin-top: -5px;">
-          ¿Qué experiencia te dejó el video? ¿Qué parte de la fonética se te hizo fácil?
-        </p>
-        <textarea 
-          id="part3" 
-          rows="4" 
-          placeholder="Ej: Wie heißt du? – Ich heiße..."
-        >{part3}</textarea>
+        <label>3. Reflexión</label>
+        <textarea id="part3" rows="4">{part3}</textarea>
       </div>
-
-      <button type="submit" id="submit-btn" class="btn" style="width:100%;">
-        Enviar y ver Feedback
-      </button>
-      <p id="status-msg" style="text-align:center; margin-top:1rem;"></p>
+      <button type="submit" id="submit-btn" class="btn" style="width:100%;">Enviar</button>
     </form>
   </div>
+</Layout>
 
-  <script type="module">
+<script type="module">
     import { supabase } from '../../lib/supabase';
-
     const form = document.getElementById('activity-form');
     const btn = document.getElementById('submit-btn');
-
-    const loadingMessages = [
-      "IA Analizando...",
-      "Consultando al Tutor...",
-      "Corrigiendo gramática...",
-      "Preparando tu feedback..."
-    ];
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       btn.disabled = true;
-      
-      // Animación de carga
-      let msgIndex = 0;
-      btn.innerHTML = `<span class="spinner"></span> ${loadingMessages[0]}`;
-      
-      const interval = setInterval(() => {
-        msgIndex = (msgIndex + 1) % loadingMessages.length;
-        btn.innerHTML = `<span class="spinner"></span> ${loadingMessages[msgIndex]}`;
-      }, 3500);
+      btn.innerText = "Procesando...";
 
-      // Obtener usuario (Cliente)
       const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
-        clearInterval(interval);
-        alert("Tu sesión ha expirado. Por favor recarga la página.");
-        return;
-      }
-
-      // Recopilar datos
-      const val1 = document.getElementById('part1').value;
-      const val2 = document.getElementById('part2').value;
-      const val3 = document.getElementById('part3').value;
-
-      const text = `[PRESENTACIÓN]
-${val1}
-
-[PERSONAJE]
-${val2}
-
-[REFLEXIÓN]
-${val3}`;
+      const text = `[PRESENTACIÓN]\n${document.getElementById('part1').value}\n\n[PERSONAJE]\n${document.getElementById('part2').value}\n\n[REFLEXIÓN]\n${document.getElementById('part3').value}`;
 
       try {
-        // 1. Enviar a IA
-        const response = await fetch('/api/submit', {
+        const res = await fetch('/api/submit', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ text })
         });
-        const result = await response.json();
+        const result = await res.json();
         
-        if (!result.success) throw new Error(result.error || "Error desconocido");
-
-        // 2. Guardar en Supabase
-        const { error: dbError } = await supabase.from('submissions').upsert({
+        await supabase.from('submissions').upsert({
           user_id: user.id,
           user_email: user.email,
-          session_id: 'a1-w2', // IMPORTANTE: Debe coincidir con la DB
+          session_id: 'a1-w2',
           content_text: text,
           ai_feedback: result.feedback
         }, { onConflict: 'user_id,session_id' });
 
-        if (dbError) throw dbError;
-
-        clearInterval(interval);
         window.location.href = `/dashboard?new_feedback=${encodeURIComponent(result.feedback)}`;
-
       } catch (err) {
-        clearInterval(interval);
-        console.error(err);
-        alert("⚠️ Error: " + err.message);
+        alert("Error: " + err.message);
         btn.disabled = false;
         btn.innerText = "Reintentar";
       }
     });
-  </script>
-</Layout>
+</script>
