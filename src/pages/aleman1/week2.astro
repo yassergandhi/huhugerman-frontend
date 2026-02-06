@@ -27,29 +27,24 @@ import Layout from '../../layouts/Layout.astro';
       </div>
     </div>
     
-    <div class="card" style="padding: 0; overflow: hidden; margin-bottom: 2rem;">
-      <div style="position: relative; padding-bottom: 56.25%; height: 0;">
-        <iframe 
-          src="https://www.youtube.com/embed/5g9l4x2xkHM" 
-          style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border:0;"
-          allowfullscreen>
-        </iframe>
-      </div>
+<!-- VIDEO ÚNICO (CORREGIDO) -->
+    <div class="card" style="margin-bottom: 2rem; text-align:center;">
+ <iframe width="560" height="315" src="https://www.youtube.com/embed/Yaelm87PTvg?si=rD9-YCZ6XxWPx-qn" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe> 
     </div>
 
     <form id="activity-form" class="card">
-      <h2 style="font-size: 1.2rem; margin-bottom: 1.5rem;">Tu Tarea (Hausaufgabe)</h2>
+      <h2 style="font-size: 1.2rem; margin-bottom: 1.5rem;">Deine Aufgabe</h2>
 
       <div style="margin-bottom: 1.5rem;">
         <label>1. Tu presentación personal:</label>
         <p style="font-size: 0.8rem; opacity: 0.7; margin-top: -5px;">
-          Responde implícitamente a: <i>Wie heißt du? Wo wohnst du? Woher kommst du?</i> Usa al menos un número (0–12).
+          Responde a las siguientes preguntas: <i>Wie heißt du? Wo wohnst du? Woher kommst du?, Wie ist dein Vorname, Familienname? Wie ist deine Telefonnumer?</i> 
         </p>
         <textarea id="part1" rows="3" placeholder="Ej: Hallo! Ich heiße... Ich komme aus... Ich wohne in... Meine Telefonnummer ist... Tschüss!"></textarea>
       </div>
       
       <div style="margin-bottom: 1.5rem;">
-        <label>2. Presenta a un personaje famoso germanoparlante.</label>
+        <label>2. Presenta a alguna persona del video: </label>
         <p style="font-size: 0.8rem; opacity: 0.7; margin-top: -5px;">
           Incluye respuestas a: <i>Wer ist das? Wie heißt er/sie? Wo wohnt er/sie? Woher kommt er/sie?</i>
         </p>
@@ -59,7 +54,7 @@ import Layout from '../../layouts/Layout.astro';
       <div style="margin-bottom: 1.5rem;">
         <label>3. Reflexión del video:</label>
         <p style="font-size: 0.8rem; opacity: 0.7; margin-top: -5px;">
-          Escribe una <b>W-Frage</b> que te haya parecido útil del video y tu respuesta.
+          ¿Qué experiencia te dejó el video? ¿Qué parte de la fonética se te hizo fácil?
         </p>
         <textarea id="part3" rows="4" placeholder="Ej: Wie heißt du? – Ich heiße..."></textarea>
       </div>
