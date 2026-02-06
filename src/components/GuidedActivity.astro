@@ -6,7 +6,7 @@ import { getBackLink } from '@lib/navigation';
 const { lesson } = Astro.props;
 const backLink = getBackLink(lesson);
 
-// Fallback seguro para el ID de la semana y nivel si no vienen explícitos
+// Fallback seguro para el ID de la semana y nivel
 const weekId = lesson.weekId || lesson.id || 'w01'; 
 const levelId = lesson.level || 'aleman1';
 ---
@@ -53,34 +53,9 @@ const levelId = lesson.level || 'aleman1';
   )}
 
   <form id="activity-form" data-level={levelId} data-week={weekId}>
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
-      <div>
-        <label for="firstName" style="display:block; font-weight:bold; margin-bottom:0.5rem;">Nombre(s)*</label>
-        <input 
-          type="text" 
-          id="firstName" 
-          name="firstName" 
-          required
-          placeholder="Ej. Juan"
-          style="width:100%; padding:0.8rem; border:1px solid #ddd; border-radius:8px;"
-        />
-      </div>
-      <div>
-        <label for="lastName" style="display:block; font-weight:bold; margin-bottom:0.5rem;">Apellido(s)*</label>
-        <input 
-          type="text" 
-          id="lastName" 
-          name="lastName" 
-          required
-          placeholder="Ej. Pérez"
-          style="width:100%; padding:0.8rem; border:1px solid #ddd; border-radius:8px;"
-        />
-      </div>
-    </div>
-
     <h2>{lesson.activity.title}</h2>
     
-    {lesson.activity.parts.map((part: any, index: number) => (
+    {lesson.activity.parts.map((part: any) => (
       <div style="margin-bottom:1.5rem;">
         <label for={part.id} class="activity-label">{part.label}</label>
         <p style="font-size:0.8rem; opacity:.7;">{part.help}</p>
@@ -114,14 +89,13 @@ const levelId = lesson.level || 'aleman1';
         ✅ <span>Actividad entregada</span>
       </p>
       <p style="font-size: 0.85rem; opacity: 0.8;">
-        Tu respuesta ha sido registrada correctamente en el sistema.
+        Tu respuesta ha sido registrada correctamente.
       </p>
     </div>
   </div>
 </div>
 
 <script>
-  // Script del Cliente
   const form = document.getElementById('activity-form') as HTMLFormElement;
   const btn = document.getElementById('submit-btn') as HTMLButtonElement;
   const feedbackContainer = document.getElementById('feedback-container');
@@ -131,22 +105,10 @@ const levelId = lesson.level || 'aleman1';
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       
-      // 1. Obtener datos básicos
-      const firstNameInput = document.getElementById('firstName') as HTMLInputElement;
-      const lastNameInput = document.getElementById('lastName') as HTMLInputElement;
-      
-      const firstName = firstNameInput.value.trim();
-      const lastName = lastNameInput.value.trim();
-      const level = form.dataset.level; // Leído desde el HTML
-      const week = form.dataset.week;   // Leído desde el HTML
+      const level = form.dataset.level;
+      const week = form.dataset.week;
 
-      // Validación simple
-      if (firstName.length < 2 || lastName.length < 2) {
-        alert('⚠️ Por favor ingresa tu nombre y apellido completos.');
-        return;
-      }
-
-      // 2. Recolección dinámica del contenido (independiente del número de partes)
+      // Recolección dinámica del contenido de las textareas
       let content = "";
       const textareas = form.querySelectorAll('textarea');
       let hasContent = false;
@@ -155,7 +117,6 @@ const levelId = lesson.level || 'aleman1';
         const value = (area as HTMLTextAreaElement).value.trim();
         if (value) {
           hasContent = true;
-          // Usamos el label del atributo data, o el ID como fallback
           const label = area.getAttribute('data-label') || area.id.toUpperCase();
           content += `[${label}]\n${value}\n\n`;
         }
@@ -169,14 +130,11 @@ const levelId = lesson.level || 'aleman1';
       btn.disabled = true;
       btn.innerText = 'Enviando...';
 
-      // 3. Construcción del Payload (Coincide con SubmissionInputSchema)
+      // El payload ahora es más ligero; el backend identificará al usuario por su sesión
       const payload = {
-        firstName,
-        lastName,
-        level,   // Ej: 'aleman1'
-        week,    // Ej: 'w01'
-        content: content.trim(),
-        email: "" // Opcional por ahora
+        level,
+        week,
+        content: content.trim()
       };
 
       try {
@@ -188,11 +146,10 @@ const levelId = lesson.level || 'aleman1';
         
         const result = await response.json();
         
-        if (!response.ok || (result.error)) {
+        if (!response.ok || result.error) {
           throw new Error(result.error || 'Error en el servidor');
         }
         
-        // 4. Mostrar Feedback
         if (feedbackContent && feedbackContainer) {
           feedbackContent.innerHTML = result.feedback || "Respuesta registrada.";
           feedbackContainer.style.display = 'block';

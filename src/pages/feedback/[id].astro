@@ -4,21 +4,30 @@ import { supabase } from '../../lib/supabase';
 
 const { id } = Astro.params;
 
-const { data: submission } = await supabase
+// 1. Obtener la sesión del usuario para proteger los datos
+const { data: { session } } = await supabase.auth.getSession();
+
+if (!session) {
+  return Astro.redirect('/'); // Redirigir si no hay sesión
+}
+
+// 2. Consulta filtrando por ID Y por USER_ID para seguridad (Multi-tenant)
+const { data: submission, error } = await supabase
   .from('submissions')
   .select('*')
   .eq('id', id)
+  .eq('user_id', session.user.id) // <--- CRÍTICO por privacidad
   .single();
 
-if (!submission) {
-  throw new Error('Feedback no encontrado');
+if (error || !submission) {
+  // En lugar de un throw que rompe el sitio, puedes redirigir a un 404
+  return Astro.redirect('/404');
 }
 ---
 
 <Layout title="Tu Feedback">
   <div class="container">
-
-    <a href="/dashboard" style="color:var(--accent-primary); font-weight:bold;">
+    <a href="/dashboard" style="color:var(--accent-primary); font-weight:bold; text-decoration:none;">
       ← Volver al Dashboard
     </a>
 
@@ -26,19 +35,17 @@ if (!submission) {
 
     <div class="card" style="margin-top:1.5rem;">
       <h3>✍️ Tu respuesta</h3>
-      <pre style="white-space: pre-wrap; opacity:0.85;">
-{submission.content_text}
-      </pre>
+      <pre style="white-space: pre-wrap; opacity:0.85; font-family: inherit;">{submission.content_text}</pre>
     </div>
 
     <div class="card" style="margin-top:1.5rem; border-left:4px solid var(--accent-primary);">
       <h3>🤖 Corrección y Comentarios</h3>
-      <div innerHTML={submission.ai_feedback}></div>
+      {/* 3. Uso correcto de set:html para renderizar el HTML de la IA */}
+      <div set:html={submission.ai_feedback} />
     </div>
 
     <p style="margin-top:2rem; opacity:0.6; font-size:0.8rem;">
-      Enviado el {new Date(submission.created_at).toLocaleString()}
+      Enviado el {new Date(submission.created_at).toLocaleString('es-MX')}
     </p>
-
   </div>
 </Layout>

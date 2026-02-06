@@ -88,6 +88,7 @@ src/
       weeks/
         a1-woche-01.ts
         a1-woche-02.ts
+        a2-woche-01.ts
         a2-woche-02.ts
         week-registry.ts
       index.ts
@@ -96,7 +97,9 @@ src/
         submissions.ts
     navigation.ts
     roadmap.ts
+    supabase-admin.ts
     supabase.js
+    supabase.ts
   pages/
     aleman1/
       index.astro
@@ -117,9 +120,7 @@ src/
 .gitignore
 .node-version
 astro.config.mjs
-fix-imports.sh
 package.json
-quick-check.sh
 README.md
 tsconfig.json
 </directory_structure>
@@ -127,410 +128,95 @@ tsconfig.json
 <files>
 This section contains the contents of the repository's files.
 
-<file path="fix-imports.sh">
-#!/bin/bash
-# Script de corrección automática para huhugerman-portal
-# Ejecutar en la raíz del proyecto
+<file path="src/lib/domain/weeks/a2-woche-01.ts">
+// src/lib/domain/weeks/a2-woche-01.ts
+import type { WochenKontext } from '../schemas/week-context.schema';
 
-set -e  # Salir si hay errores
-
-echo "🔧 Iniciando correcciones automáticas..."
-echo ""
-
-# Colores para output
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-NC='\033[0m' # No Color
-
-# 1. Verificar que estamos en el directorio correcto
-if [ ! -f "package.json" ]; then
-    echo -e "${RED}❌ Error: No se encuentra package.json${NC}"
-    echo "   Ejecuta este script desde la raíz del proyecto"
-    exit 1
-fi
-
-echo -e "${GREEN}✓${NC} Directorio del proyecto verificado"
-
-# 2. Backup de archivos originales
-echo ""
-echo "📦 Creando backups..."
-mkdir -p .backups
-cp src/lib/ai-service.ts .backups/ai-service.ts.bak 2>/dev/null || true
-cp src/lib/services/persistence/submissions.ts .backups/submissions.ts.bak 2>/dev/null || true
-cp src/pages/api/submit.ts .backups/submit.ts.bak 2>/dev/null || true
-echo -e "${GREEN}✓${NC} Backups creados en .backups/"
-
-# 3. Corregir ai-service.ts
-echo ""
-echo "🔄 Corrigiendo src/lib/ai-service.ts..."
-if [ -f "src/lib/ai-service.ts" ]; then
-    sed -i "s|from './services/ai/prompt-builder'|from './ai/prompt-builder'|g" src/lib/ai-service.ts
-    echo -e "${GREEN}✓${NC} Importación de prompt-builder corregida"
-else
-    echo -e "${YELLOW}⚠${NC}  Archivo no encontrado, saltando..."
-fi
-
-# 4. Corregir submissions.ts
-echo ""
-echo "🔄 Corrigiendo src/lib/services/persistence/submissions.ts..."
-if [ -f "src/lib/services/persistence/submissions.ts" ]; then
-    sed -i "s|from '../../../lib/supabase'|from '../../supabase'|g" src/lib/services/persistence/submissions.ts
-    echo -e "${GREEN}✓${NC} Importación de supabase corregida"
-else
-    echo -e "${YELLOW}⚠${NC}  Archivo no encontrado, saltando..."
-fi
-
-# 5. Corregir submit.ts
-echo ""
-echo "🔄 Corrigiendo src/pages/api/submit.ts..."
-if [ -f "src/pages/api/submit.ts" ]; then
-    # Corregir imports
-    sed -i 's|from "../../lib/domain/schemas/submission.schema"|from "@/lib/domain/schemas/submission.schema"|g' src/pages/api/submit.ts
-    sed -i 's|from "../../lib/services/persistence/submissions"|from "@/lib/services/persistence/submissions"|g' src/pages/api/submit.ts
-    sed -i 's|from "../../lib/supabase"|from "@/lib/supabase"|g' src/pages/api/submit.ts
-    sed -i 's|from "../../lib/ai-service"|from "@/lib/ai-service"|g' src/pages/api/submit.ts
-    
-    # Corregir respuesta del API (id -> submission_id)
-    sed -i 's|id: savedRecord.id,|submission_id: savedRecord.id,|g' src/pages/api/submit.ts
-    
-    echo -e "${GREEN}✓${NC} Importaciones y respuesta API corregidas"
-else
-    echo -e "${YELLOW}⚠${NC}  Archivo no encontrado, saltando..."
-fi
-
-# 6. Verificar estructura de directorios
-echo ""
-echo "📁 Verificando estructura de directorios..."
-REQUIRED_DIRS=(
-    "src/lib/ai"
-    "src/lib/domain/schemas"
-    "src/lib/services/persistence"
-    "src/pages/api"
-)
-
-for dir in "${REQUIRED_DIRS[@]}"; do
-    if [ -d "$dir" ]; then
-        echo -e "${GREEN}✓${NC} $dir existe"
-    else
-        echo -e "${RED}✗${NC} $dir NO existe"
-    fi
-done
-
-# 7. Verificar archivos clave
-echo ""
-echo "📄 Verificando archivos clave..."
-REQUIRED_FILES=(
-    "src/lib/ai/prompt-builder.ts"
-    "src/lib/supabase.ts"
-    "src/lib/ai-service.ts"
-    "src/pages/api/submit.ts"
-)
-
-for file in "${REQUIRED_FILES[@]}"; do
-    if [ -f "$file" ]; then
-        echo -e "${GREEN}✓${NC} $file existe"
-    else
-        echo -e "${RED}✗${NC} $file NO existe"
-    fi
-done
-
-# 8. Verificar .env
-echo ""
-echo "🔑 Verificando variables de entorno..."
-if [ -f ".env" ]; then
-    echo -e "${GREEN}✓${NC} Archivo .env existe"
-    
-    # Verificar que tenga las variables necesarias
-    REQUIRED_VARS=("PUBLIC_SUPABASE_URL" "PUBLIC_SUPABASE_KEY" "SUPABASE_SERVICE_ROLE_KEY" "DEEPSEEK_API_KEY")
-    for var in "${REQUIRED_VARS[@]}"; do
-        if grep -q "^${var}=" .env; then
-            echo -e "${GREEN}✓${NC} $var configurada"
-        else
-            echo -e "${YELLOW}⚠${NC}  $var NO encontrada en .env"
-        fi
-    done
-else
-    echo -e "${YELLOW}⚠${NC}  Archivo .env no existe"
-    echo "   Creando plantilla de .env..."
-    cat > .env << 'EOF'
-# Supabase Configuration
-PUBLIC_SUPABASE_URL=https://tu-proyecto.supabase.co
-PUBLIC_SUPABASE_KEY=tu-anon-key-aqui
-SUPABASE_SERVICE_ROLE_KEY=tu-service-role-key-aqui
-
-# DeepSeek AI
-DEEPSEEK_API_KEY=tu-deepseek-api-key-aqui
-EOF
-    echo -e "${GREEN}✓${NC} Plantilla .env creada - EDÍTALA con tus credenciales"
-fi
-
-# 9. Verificar TypeScript
-echo ""
-echo "🔍 Verificando TypeScript..."
-if command -v npx &> /dev/null; then
-    if npx tsc --noEmit --skipLibCheck 2>/dev/null; then
-        echo -e "${GREEN}✓${NC} No hay errores de TypeScript"
-    else
-        echo -e "${YELLOW}⚠${NC}  Hay errores de TypeScript (revisar manualmente)"
-    fi
-else
-    echo -e "${YELLOW}⚠${NC}  npx no disponible, saltando verificación TS"
-fi
-
-# 10. Resumen final
-echo ""
-echo "=========================================="
-echo -e "${GREEN}✅ CORRECCIONES COMPLETADAS${NC}"
-echo "=========================================="
-echo ""
-echo "📋 PRÓXIMOS PASOS:"
-echo ""
-echo "1. Edita el archivo .env con tus credenciales reales"
-echo "2. Ejecuta: npm install"
-echo "3. Ejecuta: npm run dev"
-echo "4. Prueba el endpoint con curl:"
-echo '   curl -X POST http://localhost:4321/api/submit \'
-echo '     -H "Content-Type: application/json" \'
-echo '     -d '"'"'{"firstName":"Test","lastName":"User","level":"aleman1","week":"w01","content":"Hallo","userId":"550e8400-e29b-41d4-a716-446655440000"}'"'"
-echo ""
-echo "5. Si todo funciona, ejecuta: npm run build"
-echo "6. Deploy con: vercel --prod"
-echo ""
-echo -e "${YELLOW}💡 TIP:${NC} Los backups están en .backups/ por si necesitas revertir"
-echo ""
+export const A2_WOCHE_01: WochenKontext = {
+  kurs: "A2",
+  woche: 1,
+  title: "Woche 1: Wiederholung und Nominativ/Akkusativ",
+  
+  gelernt: {  // ✅ Cambiado
+    grammatik: {
+      verbzweistellung: true,
+      aussagesatz: true,
+      kasus: {
+        nominativ: {
+          gelernt: true,
+          verwendung: ["Subjekt", "nach sein"]
+        },
+        akkusativ: {
+          gelernt: true,
+          artikel: ["den", "einen"],
+          verwendung: ["Direktes Objekt"]
+        }
+      },
+      konjugation: {
+        verben: ["sein", "haben", "sehen", "trainieren"],
+        personalpronomen: ["ich", "du", "er", "sie", "wir", "Sie"]
+      },
+      personalpronomen: ["ich", "du", "er", "sie", "wir", "Sie"]
+    },
+    wortschatz: {
+      themen: ["Berufe", "Freizeit", "Vorstellung"]
+    },
+    soziopragmatik: ["du/Sie", "formelle Situation"]
+  },
+  
+  nicht_gelernt: {  // ✅ Cambiado
+    grammatik: ["Dativ", "Perfekt", "Nebensätze"],
+    soziopragmatik: ["Umgangssprache"]
+  },
+  
+  korrektur: {
+    darf_korrigieren: ["Wortstellung", "Akkusativ", "Verbformen"],
+    darf_nicht_korrigieren: ["Dativ", "Genitiv"],
+    max_fehler: 3,
+    ueberkorrektur_vermeiden: true
+  }
+};
 </file>
 
-<file path="quick-check.sh">
-#!/bin/bash
-# Script de verificación rápida y testing
-# Para: huhugerman-portal
+<file path="src/lib/supabase-admin.ts">
+// src/lib/supabase-admin.ts
+import { createClient } from '@supabase/supabase-js';
 
-# Colores
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-BLUE='\033[0;34m'
-NC='\033[0m'
+const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL || process.env.PUBLIC_SUPABASE_URL;
+const supabaseServiceKey = import.meta.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-echo ""
-echo "🚀 VERIFICACIÓN RÁPIDA - huhugerman-portal"
-echo "==========================================="
-echo ""
-
-# Función para verificar comando
-check_command() {
-    if command -v $1 &> /dev/null; then
-        echo -e "${GREEN}✓${NC} $1 instalado"
-        return 0
-    else
-        echo -e "${RED}✗${NC} $1 NO instalado"
-        return 1
-    fi
+// ✅ Validar antes de crear el cliente
+if (!supabaseUrl || !supabaseServiceKey) {
+  throw new Error(
+    '❌ Faltan variables de entorno de Supabase Admin.\n' +
+    'Asegúrate de tener PUBLIC_SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY en tu archivo .env'
+  );
 }
 
-# 1. Verificar herramientas necesarias
-echo "📦 Verificando herramientas..."
-check_command node
-check_command npm
-check_command curl
-echo ""
+export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false
+  }
+});
+</file>
 
-# 2. Verificar archivos del proyecto
-echo "📁 Verificando estructura del proyecto..."
-FILES_TO_CHECK=(
-    "package.json"
-    "tsconfig.json"
-    "astro.config.mjs"
-    ".env"
-    "src/lib/ai-service.ts"
-    "src/lib/ai/prompt-builder.ts"
-    "src/lib/supabase.ts"
-    "src/pages/api/submit.ts"
-    "src/lib/services/persistence/submissions.ts"
-)
+<file path="src/lib/supabase.ts">
+// src/lib/supabase.ts
+import { createClient } from '@supabase/supabase-js';
 
-for file in "${FILES_TO_CHECK[@]}"; do
-    if [ -f "$file" ]; then
-        echo -e "${GREEN}✓${NC} $file"
-    else
-        echo -e "${RED}✗${NC} $file (FALTA)"
-    fi
-done
-echo ""
+const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL;
+const supabaseKey = import.meta.env.PUBLIC_SUPABASE_KEY;
 
-# 3. Verificar variables de entorno
-echo "🔑 Verificando variables de entorno..."
-if [ -f ".env" ]; then
-    VARS=("PUBLIC_SUPABASE_URL" "PUBLIC_SUPABASE_KEY" "SUPABASE_SERVICE_ROLE_KEY" "DEEPSEEK_API_KEY")
-    for var in "${VARS[@]}"; do
-        if grep -q "^${var}=" .env && ! grep -q "^${var}=tu-" .env && ! grep -q "^${var}=$" .env; then
-            echo -e "${GREEN}✓${NC} $var configurada"
-        else
-            echo -e "${YELLOW}⚠${NC}  $var no configurada o con valor placeholder"
-        fi
-    done
-else
-    echo -e "${RED}✗${NC} Archivo .env no existe"
-fi
-echo ""
+// ✅ Validar antes de crear el cliente
+if (!supabaseUrl || !supabaseKey) {
+  throw new Error(
+    '❌ Faltan variables de entorno de Supabase.\n' +
+    'Asegúrate de tener PUBLIC_SUPABASE_URL y PUBLIC_SUPABASE_KEY en tu archivo .env'
+  );
+}
 
-# 4. Verificar importaciones en archivos clave
-echo "🔍 Verificando importaciones..."
-
-# ai-service.ts
-if grep -q "from './ai/prompt-builder'" src/lib/ai-service.ts 2>/dev/null; then
-    echo -e "${GREEN}✓${NC} ai-service.ts - importación correcta"
-else
-    echo -e "${RED}✗${NC} ai-service.ts - importación INCORRECTA"
-fi
-
-# submissions.ts
-if grep -q "from '../../supabase'" src/lib/services/persistence/submissions.ts 2>/dev/null; then
-    echo -e "${GREEN}✓${NC} submissions.ts - importación correcta"
-else
-    echo -e "${RED}✗${NC} submissions.ts - importación INCORRECTA"
-fi
-
-# submit.ts - verificar múltiples imports
-if grep -q 'from "@/lib' src/pages/api/submit.ts 2>/dev/null; then
-    echo -e "${GREEN}✓${NC} submit.ts - usando alias @/"
-else
-    echo -e "${YELLOW}⚠${NC}  submit.ts - podría necesitar alias @/"
-fi
-
-# Verificar respuesta API
-if grep -q "submission_id: savedRecord.id" src/pages/api/submit.ts 2>/dev/null; then
-    echo -e "${GREEN}✓${NC} submit.ts - respuesta con submission_id correcta"
-else
-    echo -e "${RED}✗${NC} submit.ts - respuesta podría tener 'id' en lugar de 'submission_id'"
-fi
-echo ""
-
-# 5. Verificar dependencias instaladas
-echo "📚 Verificando dependencias npm..."
-if [ -d "node_modules" ]; then
-    echo -e "${GREEN}✓${NC} node_modules existe"
-    
-    DEPS=("astro" "zod" "openai" "@supabase/supabase-js")
-    for dep in "${DEPS[@]}"; do
-        if [ -d "node_modules/$dep" ]; then
-            echo -e "${GREEN}✓${NC} $dep instalado"
-        else
-            echo -e "${RED}✗${NC} $dep NO instalado"
-        fi
-    done
-else
-    echo -e "${RED}✗${NC} node_modules NO existe - ejecuta: npm install"
-fi
-echo ""
-
-# 6. Test TypeScript (si está disponible)
-echo "🔧 Verificando TypeScript..."
-if command -v npx &> /dev/null; then
-    if npx tsc --noEmit --skipLibCheck 2>&1 | grep -q "error TS"; then
-        echo -e "${RED}✗${NC} Hay errores de TypeScript"
-        echo "   Ejecuta: npx tsc --noEmit para ver detalles"
-    else
-        echo -e "${GREEN}✓${NC} Sin errores de TypeScript"
-    fi
-else
-    echo -e "${YELLOW}⚠${NC}  npx no disponible"
-fi
-echo ""
-
-# 7. Sugerencias de comandos
-echo "=========================================="
-echo -e "${BLUE}📋 PRÓXIMOS PASOS SUGERIDOS${NC}"
-echo "=========================================="
-echo ""
-
-# Determinar qué hacer basado en el estado
-NEEDS_INSTALL=false
-NEEDS_ENV=false
-NEEDS_FIX=false
-
-if [ ! -d "node_modules" ]; then
-    NEEDS_INSTALL=true
-fi
-
-if [ ! -f ".env" ] || grep -q "tu-proyecto.supabase.co" .env 2>/dev/null; then
-    NEEDS_ENV=true
-fi
-
-if ! grep -q "from './ai/prompt-builder'" src/lib/ai-service.ts 2>/dev/null; then
-    NEEDS_FIX=true
-fi
-
-if [ "$NEEDS_FIX" = true ]; then
-    echo -e "${YELLOW}1.${NC} Corregir importaciones:"
-    echo "   bash fix-imports.sh"
-    echo ""
-fi
-
-if [ "$NEEDS_ENV" = true ]; then
-    echo -e "${YELLOW}2.${NC} Configurar variables de entorno:"
-    echo "   Edita .env con tus credenciales reales"
-    echo ""
-fi
-
-if [ "$NEEDS_INSTALL" = true ]; then
-    echo -e "${YELLOW}3.${NC} Instalar dependencias:"
-    echo "   npm install"
-    echo ""
-fi
-
-echo -e "${BLUE}4.${NC} Iniciar servidor de desarrollo:"
-echo "   npm run dev"
-echo ""
-
-echo -e "${BLUE}5.${NC} Ejecutar tests:"
-echo "   npx vitest run"
-echo ""
-
-echo -e "${BLUE}6.${NC} Test manual del API:"
-echo '   curl -X POST http://localhost:4321/api/submit \'
-echo '     -H "Content-Type: application/json" \'
-echo '     -d '"'"'{"firstName":"Test","lastName":"User","level":"aleman1","week":"w01","content":"Hallo","userId":"550e8400-e29b-41d4-a716-446655440000"}'"'"
-echo ""
-
-echo -e "${BLUE}7.${NC} Build para producción:"
-echo "   npm run build"
-echo ""
-
-echo -e "${BLUE}8.${NC} Deploy a Vercel:"
-echo "   vercel --prod"
-echo ""
-
-# Resumen final
-echo "=========================================="
-echo -e "${GREEN}✅ VERIFICACIÓN COMPLETADA${NC}"
-echo "=========================================="
-echo ""
-
-# Contador de problemas
-PROBLEMS=0
-if [ "$NEEDS_FIX" = true ]; then ((PROBLEMS++)); fi
-if [ "$NEEDS_ENV" = true ]; then ((PROBLEMS++)); fi
-if [ "$NEEDS_INSTALL" = true ]; then ((PROBLEMS++)); fi
-
-if [ $PROBLEMS -eq 0 ]; then
-    echo -e "${GREEN}Todo listo para continuar 🚀${NC}"
-else
-    echo -e "${YELLOW}Se encontraron $PROBLEMS problema(s) que requieren atención ⚠️${NC}"
-fi
-echo ""
-
-# Ofrecer comandos rápidos
-echo "💡 COMANDOS RÁPIDOS:"
-echo ""
-echo "   ./quick-check.sh          # Ejecutar esta verificación"
-echo "   ./fix-imports.sh          # Corregir importaciones"
-echo "   npm install               # Instalar dependencias"
-echo "   npm run dev               # Servidor desarrollo"
-echo "   npm run build             # Build producción"
-echo "   npx vitest run            # Ejecutar tests"
-echo ""
+export const supabase = createClient(supabaseUrl, supabaseKey);
 </file>
 
 <file path="public/favicon.svg">

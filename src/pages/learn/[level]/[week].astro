@@ -2,61 +2,59 @@
 // src/pages/learn/[level]/[week].astro
 import Layout from '@/layouts/Layout.astro';
 import GuidedActivity from '@/components/GuidedActivity.astro';
-import LessonUI from '@/components/LessonUI.astro'; // Asegúrate de tener este componente o quitar la referencia si no lo usas
 
-// 1. Obtener parámetros de la URL
+// 1. Obtener parámetros
 const { level, week } = Astro.params;
 
-// 2. Validación de seguridad básica
-if (!level || !week) {
-  return Astro.redirect('/404');
-}
+// 2. Validación de seguridad y existencia de parámetros
+if (!level || !week) return Astro.redirect('/404');
 
-// 3. Normalización de URL (Auto-corrección de 'week1' a 'w01')
-// Si el usuario entra a /week1, lo mandamos a /w01 para que coincida con tu archivo w01.js
+// 3. Normalización: /week1 -> /w01
 const weekMatch = week.match(/^week(\d+)$/i);
 if (weekMatch) {
-  const weekNum = weekMatch[1].padStart(2, '0'); // 1 -> 01
+  const weekNum = weekMatch[1].padStart(2, '0');
   return Astro.redirect(`/learn/${level}/w${weekNum}`);
 }
 
-let lesson = null;
+// 4. Validación de niveles permitidos (Prevenir inyecciones de ruta)
+const allowedLevels = ['aleman1', 'aleman2'];
+if (!allowedLevels.includes(level)) return Astro.redirect('/404');
+
+let lesson: any = null;
 
 try {
-  // 4. Importación Dinámica (Ruta relativa basada en tu TREE)
-  // Estás en: src/pages/learn/[level]/[week].astro
-  // Los cursos están en: src/lib/courses/[level]/sessions/[week].js
-  // Ruta relativa: ../../../lib/courses/...
-  
+  /* Vite necesita una pista sobre la carpeta. 
+     Usar una ruta semi-estática es más robusto para el bundling.
+  */
   const lessonModule = await import(`../../../lib/courses/${level}/sessions/${week}.js`);
-  
-  // Soporte para export default o module.exports
   lesson = lessonModule.default || lessonModule;
 
-  // Inyectamos IDs para que los componentes hijos sepan el contexto
+  // Inyección de contexto para componentes hijos
   lesson.level = level;
   lesson.weekId = week;
+  lesson.slug = week; // Aseguramos que tenga el slug para el formulario
 
 } catch (error) {
-  console.error(`❌ [Error de Carga] No se encontró la lección: ${level}/${week}`);
-  console.error(`   Intentado en ruta: ../../../lib/courses/${level}/sessions/${week}.js`);
-  
-  // Si el archivo no existe, NO crasheamos. Redirigimos a 404.
+  console.error(`❌ Error cargando: ${level}/${week}`);
   return Astro.redirect('/404');
 }
 
-// 5. Verificación final de integridad
+// 5. Verificación de integridad
 if (!lesson || !lesson.title) {
-  console.error("❌ La lección cargó pero le falta el título o datos esenciales.");
   return Astro.redirect('/404');
 }
 ---
 
 <Layout title={lesson.title}>
+  {/* Usamos la lógica de 'guided' para mostrar el componente que maneja 
+      el formulario y la persistencia que acabamos de blindar.
+  */}
   {lesson.type === 'guided' || lesson.activity ? (
     <GuidedActivity lesson={lesson} />
   ) : (
-    /* Fallback para lecciones puramente de contenido si existen */
-    <LessonUI lesson={lesson} />
+    <div class="container">
+      <h1>{lesson.title}</h1>
+      <p>Esta lección aún no tiene una actividad configurada.</p>
+    </div>
   )}
 </Layout>

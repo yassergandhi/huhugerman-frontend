@@ -1,3 +1,4 @@
+// src/lib/ai/prompt-builder.ts
 import type { WochenKontext } from '../domain/schemas/week-context.schema';
 
 export function buildPedagogicalPrompt(
@@ -5,36 +6,44 @@ export function buildPedagogicalPrompt(
   context: WochenKontext,
   studentName: string
 ): string {
+  // Extraktion basierend auf der neuen Nomenklatur des Schemas
   const darfKorrigieren = context.korrektur.darf_korrigieren.join(', ');
   const darfNichtKorrigieren = context.korrektur.darf_nicht_korrigieren.join(', ');
-  const themen = context.gesehen.wortschatz.themen.join(', ');
   
+  // Zugriff auf das neue 'gelernt' Objekt statt 'gesehen'
+  const themen = context.gelernt.wortschatz.themen.join(', ');
+  
+  // Da 'kasus' im Schema ein optionales Objekt ist, behandeln wir es sicher
+  const kasusVisto = context.gelernt.grammatik.kasus 
+    ? Object.keys(context.gelernt.grammatik.kasus).filter(k => (context.gelernt.grammatik.kasus as any)[k]?.gelernt)
+    : ['Basiskonstruktionen'];
+
   return `
 Actúa como profesor de alemán para ${studentName}.
 Nivel: ${context.kurs}, Woche: ${context.woche}
+Título de la lección: ${context.title}
 
-EN CLASE SE HA VISTO:
+EN CLASE SE HA VISTO (GELERNT):
 - Temas: ${themen}
-- Gramática: ${context.gesehen.grammatik.kasus.join(', ')}
-- Pragmática: ${context.gesehen.soziopragmatik.join(', ')}
+- Gramática: ${kasusVisto.join(', ')}
+- Pragmática: ${context.gelernt.soziopragmatik.join(', ')}
 
-NO SE HA VISTO:
-- ${context.nicht_gesehen.grammatik.join(', ')}
+LO QUE EL ESTUDIANTE AÚN NO HA VISTO (NICHT GELERNT):
+- Gramática: ${context.nicht_gelernt.grammatik.join(', ')}
+- Pragmática: ${context.nicht_gelernt.soziopragmatik.join(', ')}
 
-LA IA PUEDE CORREGIR:
-- ${darfKorrigieren}
+INSTRUCCIONES DE CORRECCIÓN PARA LA IA:
+- PUEDES CORREGIR: ${darfKorrigieren}
+- NO DEBES CORREGIR (Ignora estos errores): ${darfNichtKorrigieren}
 
-LA IA NO DEBE CORREGIR:
-- ${darfNichtKorrigieren}
+REGLAS DE SALIDA:
+- Cantidad de errores: Máximo ${context.korrektur.max_fehler} puntos de corrección.
+- Estilo: Evitar sobre-corrección (${context.korrektur.ueberkorrektur_vermeiden}).
+- Tono: Formativo, empático y motivador (no punitivo).
+- Idioma del Feedback: Explicaciones en español con ejemplos claros en alemán.
+- Formato técnico: HTML simple (usar solo <p>, <ul>, <li>, <strong>).
 
-REGLAS:
-- Máximo ${context.korrektur.max_fehler} grupos de errores
-- Evitar sobre-corrección: ${context.korrektur.ueberkorrektur_vermeiden}
-- Tono formativo, no evaluativo
-- Feedback en español con ejemplos en alemán
-- HTML simple (<p>, <ul>, <li>, <strong>)
-
-TEXTO DEL ESTUDIANTE:
-${text}
+TEXTO DEL ESTUDIANTE A EVALUAR:
+"${text}"
 `;
 }
