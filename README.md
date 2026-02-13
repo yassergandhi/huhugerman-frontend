@@ -1,478 +1,414 @@
-# Domain Driven Pedagogy Demo
+# cse-student-portal-german-edu
 
-> **[ARCHIVED · Post-Mortem · Learning Artifact]**
+## 🏛️ Post-Mortem: Frontend Implementation & Pedagogical Constraints
 
-A case study in **tolerant identity resolution**, **domain-driven constraints**, and **operational transparency** for educational environments where user behavior is imperfect but learning must continue uninterrupted.
+**Status:** ARCHIVED · Learning Artifact · Real-World Implementation
 
-This repository demonstrates how to design systems that **correct instead of punish**, with explicit contracts between pedagogy and technology.
+This repository documents the **frontend evolution** of a German language education platform, showcasing how **Domain-Driven Design** and **defensive programming** were applied to create a frictionless student experience.
 
----
-
-## 🎯 What Problem Did This Solve?
-
-### Real-World Context
-
-University students (UAM/UNAM) submitted German writing assignments asynchronously via mobile devices. The friction was real:
-
-| User Behavior | System Constraint |
-|---------------|-------------------|
-| Google Forms opened with **personal Gmail** instead of institutional account | Authentication was unreliable on mobile |
-| Email typos: `gamil.com`, `hotmal.com`, missing dots | No validation at form level |
-| Incomplete names: "Ana", "Carlos G.", "Profesor" | No enforced structure |
-| Same person, different emails across submissions | No persistent session |
-
-**Traditional systems would block these users.**
-This system chose to **observe, flag, and continue**.
+Originally used by real students at Universidad Autónoma Metropolitana (UAM), this portal solved **real pedagogical challenges** through technical constraints.
 
 ---
 
-## 📊 Before: Google Sheets + Apps Script (The Audit Trail)
+## 🎯 Problem Statement
 
-### Raw Submission Structure
+### The Feedback Scope Problem
 
-When students submitted via Google Forms, this is what the intake sheet looked like:
+When integrating DeepSeek AI for automated writing feedback, a critical issue emerged:
 
-| timestamp | email | firstName | lastName | matricula | week | content | email_normalized | name_normalized | identity_hash | flags |
-|-----------|-------|-----------|----------|-----------|------|---------|------------------|-----------------|---------------|-------|
-| 2026-01-15 14:23:11 | ana.gamil.com | Ana | García | 12345678 | w01 | Hallo! Ich... | ana@gmail.com | Ana García | `a3f5...` | `EMAIL_CORRECTED` |
-| 2026-01-15 14:25:44 | ana@gmail.com | Ana | Garcia | 12345678 | w01 | Hallo! Ich... | ana@gmail.com | Ana García | `a3f5...` | `DUPLICATED_USER` |
-| 2026-01-16 09:12:03 | carlos.hotmal.com | Carlos | G. | 87654321 | w01 | Guten Tag... | carlos@hotmail.com | Carlos G. | `b7e2...` | `EMAIL_CORRECTED`, `INCOMPLETE_NAME` |
-| 2026-01-16 09:15:22 | carlos@hotmail.com | Carlos | Gómez | 87654321 | w01 | Guten Tag... | carlos@hotmail.com | Carlos Gómez | `c9d1...` | `POSSIBLE_MATCH` |
-| 2026-01-17 16:44:09 | maria@azc.uam.mx | María | López | 23456789 | w01 | Ich heiße... | maria@azc.uam.mx | María López | `d4f8...` | `INSTITUTIONAL_EMAIL` |
-| 2026-01-18 11:33:55 | external.user@gmail.com | Juan | Pérez | (blank) | w01 | Hello... | external.user@gmail.com | Juan Pérez | `e2a7...` | `EXTERNAL_STUDENT` |
+> **The AI corrected grammar and vocabulary that students hadn't learned yet.**
 
-### Flag Taxonomy
+This created confusion and undermined the pedagogical progression.
 
-| Flag | Trigger | Action |
-|------|---------|--------|
-| `EMAIL_CORRECTED` | Heuristic domain fix (`gamil` → `gmail`) | Log correction, continue |
-| `DUPLICATED_USER` | Same `identity_hash` but different submission | Mark for audit, allow resubmission |
-| `INCOMPLETE_NAME` | Last name missing or abbreviated | Flag for manual review |
-| `POSSIBLE_MATCH` | Similar hash but not exact match | Suggest merge to admin |
-| `EXTERNAL_STUDENT` | No institutional email or matrícula | Allow, but track separately |
-| `INSTITUTIONAL_EMAIL` | `@azc.uam.mx` or `@correo.unam.mx` | High trust identity |
+---
 
-### The Identity Fingerprinting Algorithm
+## 🗺️ From Roadmap.js to Domain-Driven Schemas
+
+### Initial Approach: Roadmap Configuration
 
 ```javascript
-// Google Apps Script — identity-normalization.gs
-function generateIdentityHash(email, matricula, fullName) {
-  // Normalize inputs
-  const cleanEmail = email
-    .toLowerCase()
-    .replace(/gamil\.com$/, 'gmail.com')
-    .replace(/hotmal\.com$/, 'hotmail.com');
-  
-  const cleanName = fullName
-    .trim()
-    .replace(/\s+/g, ' ')
-    .toLowerCase();
-  
-  // Composite key: email + matricula + name
-  const identityString = [cleanEmail, matricula || '', cleanName].join('|');
-  
-  // SHA-256 hash as system-owned UUID
-  const digest = Utilities.computeDigest(
-    Utilities.DigestAlgorithm.SHA_256,
-    identityString
-  );
-  
-  return digest.map(b => ('0' + (b & 0xff).toString(16)).slice(-2)).join('');
-}
-```
+// src/lib/roadmap.js (Initial version)
 
-**Key insight**: The system never blocked a submission. It only **annotated** it for later audit.
-
----
-
-## 🚀 Why We Migrated to Supabase
-
-### The Breaking Constraint: POST Requests
-
-Google Apps Script **cannot receive POST requests** from external frontends. This became a hard limit when we needed to:
-
-1. Send student submissions from an Astro frontend
-2. Call DeepSeek API for AI feedback
-3. Persist the AI response in the backend
-4. Return structured feedback to the student
-
-```javascript
-// ❌ GAS limitation
-// No way to receive this from Astro frontend
-fetch('https://script.google.com/macros/...', {
-  method: 'POST', // ← GAS only supports GET
-  body: JSON.stringify(submission)
-});
-```
-
-### The Supabase Advantage
-
-| Requirement | GAS + Sheets | Supabase |
-|-------------|--------------|----------|
-| **POST endpoints** | ❌ Impossible | ✅ Native |
-| **Relational data** | ❌ Flat tables | ✅ PostgreSQL |
-| **Type safety** | ❌ Dynamic | ✅ Zod schemas |
-| **Auth integration** | ❌ Manual | ✅ OAuth Google built-in |
-| **RLS policies** | ❌ None | ✅ Row-level security |
-| **API latency** | ⚠️ Variable | ✅ Predictable |
-
----
-
-## 🗄️ After: Normalized Database Schema
-
-### Entity-Relationship Overview
-
-```
-auth.users (Supabase Auth)
-    ↓ (1:1)
-profiles (academic identity)
-    ↓ (1:N)
-submissions (student work)
-    ↓ (1:1)
-feedback (AI response)
-```
-
-### Table: `profiles`
-
-```sql
-CREATE TABLE public.profiles (
-  id UUID PRIMARY KEY REFERENCES auth.users(id),
-  email TEXT NOT NULL,
-  first_name TEXT,
-  last_name TEXT,
-  matricula TEXT,
-  assigned_level TEXT DEFAULT 'aleman1',
-  identity_hash TEXT UNIQUE NOT NULL,
-  flags JSONB DEFAULT '[]'::jsonb,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- RLS: Users can only read their own profile
-CREATE POLICY "Users can view own profile"
-  ON profiles FOR SELECT
-  USING (auth.uid() = id);
-```
-
-### Table: `submissions`
-
-```sql
-CREATE TABLE public.submissions (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES profiles(id),
-  week_id TEXT NOT NULL, -- e.g., 'a1-w01'
-  content TEXT NOT NULL,
-  context_snapshot JSONB NOT NULL, -- Pedagogical constraints at time of submission
-  status TEXT DEFAULT 'pending',
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX idx_submissions_user_week 
-  ON submissions(user_id, week_id);
-```
-
-### Table: `feedback`
-
-```sql
-CREATE TABLE public.feedback (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  submission_id UUID NOT NULL REFERENCES submissions(id) ON DELETE CASCADE,
-  ai_response JSONB NOT NULL, -- { corrections: [...], suggestions: [...], tone: '...' }
-  processing_time_ms INTEGER,
-  error TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-```
-
-### Sample Normalized Record
-
-```json
-{
-  "profile": {
-    "id": "uuid-abc123",
-    "email": "ana@gmail.com",
-    "first_name": "Ana",
-    "last_name": "García",
-    "matricula": "12345678",
-    "identity_hash": "a3f5e8d2c7b9...",
-    "flags": ["EMAIL_CORRECTED"]
+export const COURSE_CONFIG = {
+  aleman1: {
+    title: 'Alemán 1: Fundamentos',
+    weeks: [
+      { id: 'a1-w1', title: 'Woche 1: Begrüßungen', active: true },
+      { id: 'a1-w2', title: 'Woche 2: Zahlen & Uhrzeit', active: false },
+      // ...
+    ]
   },
-  "submission": {
-    "id": "uuid-def456",
-    "week_id": "a1-w01",
-    "content": "Hallo! Ich heiße Ana. Ich wohne in Mexiko-Stadt.",
-    "context_snapshot": {
-      "gelernt": ["ich", "heißen", "wohnen", "in"],
-      "nicht_gelernt": ["wo", "wie", "alt"],
-      "darf_korrigieren": ["ich heiße", "ich wohne"],
-      "darf_nicht_korrigieren": ["wohnst du", "wie alt"]
-    }
-  },
-  "feedback": {
-    "id": "uuid-ghi789",
-    "ai_response": {
-      "corrections": [
-        {
-          "original": "Mexiko-Stadt",
-          "suggested": "Mexiko-Stadt",
-          "explanation": "Correct! Note the hyphen."
-        }
-      ],
-      "suggestions": [
-        "Try adding a greeting: 'Hallo!'"
-      ],
-      "tone": "encouraging"
-    },
-    "processing_time_ms": 3245
+  aleman2: {
+    title: 'Alemán 2: Erweiterung',
+    weeks: [
+      { id: 'a2-w1', title: 'Woche 1: Perfekt', active: true },
+      // ...
+    ]
   }
-}
+};
 ```
+
+**Problem:** This was **configuration only**. No enforcement of pedagogical constraints.
 
 ---
 
-## 🧠 Domain-Driven Design: The Pedagogical Contract
-
-### The Core Insight
-
-The AI (DeepSeek) initially corrected **everything**—including grammar not yet taught. This confused students.
-
-**Solution**: Encode the curriculum as explicit constraints in Zod schemas.
-
-### Schema: `week-context.schema.ts`
+### Evolution: Zod Schemas with Pedagogical Constraints
 
 ```typescript
+// src/lib/domain/schemas/submission.schema.ts
+
 import { z } from 'zod';
 
+/**
+ * Week Context Schema
+ * Defines what has been taught and what is forbidden to correct
+ */
 export const WeekContextSchema = z.object({
-  week_id: z.string().regex(/^a[12]-w\d{2}$/),
-  level: z.enum(['A1', 'A2']),
-  
-  // What has been taught (allowed to correct)
-  gelernt: z.object({
-    vocabulary: z.array(z.string()),
-    grammar: z.array(z.string()),
-    structures: z.array(z.string())
-  }),
-  
-  // What has NOT been taught (forbidden to correct)
-  nicht_gelernt: z.object({
-    vocabulary: z.array(z.string()),
-    grammar: z.array(z.string()),
-    structures: z.array(z.string())
-  }),
-  
-  // Explicit correction boundaries
-  darf_korrigieren: z.array(z.string()),
-  darf_nicht_korrigieren: z.array(z.string()),
-  
-  // Pedagogical parameters
-  max_fehler: z.number().default(5),
-  ueberkorrektur_vermeiden: z.boolean().default(true),
-  feedback_tone: z.enum(['encouraging', 'neutral', 'direct']).default('encouraging')
+  weekId: z.string().regex(/^[aw]\d{2}$/, 'Format: w01, w02, etc.'),
+  level: z.enum(['aleman1', 'aleman2']),
+  taughtGrammar: z.array(z.string()).describe('Grammar topics covered this week'),
+  taughtVocabulary: z.array(z.string()).describe('Vocabulary introduced this week'),
+  forbiddenCorrections: z.array(z.string()).describe('DO NOT correct these topics yet')
 });
 
-// Example: Week 1, A1
-export const A1_W01_CONTEXT = WeekContextSchema.parse({
-  week_id: 'a1-w01',
-  level: 'A1',
-  gelernt: {
-    vocabulary: ['hallo', 'ich', 'heißen', 'wohnen', 'in'],
-    grammar: ['ich + verb', 'basic greetings'],
-    structures: ['Ich heiße...', 'Ich wohne in...']
-  },
-  nicht_gelernt: {
-    vocabulary: ['wo', 'wie', 'alt', 'kommen'],
-    grammar: ['interrogatives', 'wohnst/wohnt'],
-    structures: ['Wo wohnst du?', 'Wie alt bist du?']
-  },
-  darf_korrigieren: ['ich heiße', 'ich wohne', 'capitalization'],
-  darf_nicht_korrigieren: ['wohnst du', 'interrogatives', 'verb conjugation (2nd/3rd)'],
-  max_fehler: 3,
-  ueberkorrektur_vermeiden: true,
-  feedback_tone: 'encouraging'
+/**
+ * Submission Input Schema
+ * Enforces pedagogical constraints at the API boundary
+ */
+export const SubmissionInputSchema = z.object({
+  // Identity fields (normalized by backend)
+  email: z.string().email('Invalid email format'),
+  firstName: z.string().min(2, 'First name must be at least 2 characters'),
+  lastName: z.string().min(2, 'Last name must be at least 2 characters'),
+  
+  // Academic context
+  week: z.string().regex(/^w\d{2}$/, {
+    message: 'Week must be in format w01, w02, etc.'
+  }),
+  level: z.enum(['aleman1', 'aleman2']),
+  
+  // Content validation
+  content: z.string()
+    .min(50, 'Submission must be at least 50 characters')
+    .max(2000, 'Submission cannot exceed 2000 characters'),
+  
+  // Pedagogical constraints (snapshot at submission time)
+  pedagogicalContext: WeekContextSchema
 });
+
+// Example: Week 1 constraints for A1
+export const A1_W01_CONTEXT = {
+  weekId: 'a1-w01',
+  level: 'aleman1' as const,
+  taughtGrammar: ['Nominativ', 'Artikel (der/die/das)', 'Präsens'],
+  taughtVocabulary: ['Begrüßungen', 'Zahlen 1-10', 'Familie'],
+  forbiddenCorrections: [
+    'Akkusativ',
+    'Dativ',
+    'Perfekt',
+    'Adjektivdeklination',
+    'Relativsätze'
+  ]
+} satisfies z.infer<typeof WeekContextSchema>;
 ```
 
-### How It Works
+### Key Innovation: Constraint Propagation
 
-```typescript
-// api/submit.ts
-import { A1_W01_CONTEXT } from '@/lib/domain/schemas/week-context.schema';
+The professor (who was also the developer) could update the roadmap, and those constraints **automatically propagated** to:
 
-export async function POST(request: Request) {
-  const body = await request.json();
-  
-  // Validate against pedagogical contract
-  const validated = WeekContextSchema.parse(A1_W01_CONTEXT);
-  
-  // Call AI with explicit constraints
-  const aiResponse = await callDeepSeek({
-    text: body.content,
-    constraints: {
-      correct_only: validated.darf_korrigieren,
-      ignore: validated.darf_nicht_korrigieren,
-      max_corrections: validated.max_fehler
-    }
-  });
-  
-  // Persist with context snapshot
-  await supabase.from('submissions').insert({
-    user_id: userId,
-    week_id: 'a1-w01',
-    content: body.content,
-    context_snapshot: validated // ← Immutable pedagogical contract
-  });
-  
-  return new Response(JSON.stringify(aiResponse));
-}
-```
+1. **Frontend validation** (fail fast)
+2. **AI prompt engineering** (scope feedback)
+3. **Database audit trail** (pedagogical_context JSONB)
 
 ---
 
-## ⚡ User Experience: Handling Latency
+## 🤖 DeepSeek AI Integration
 
-### The Problem
+### The Feedback Pipeline
 
-DeepSeek API responses took 3–8 seconds. A frozen UI would feel broken.
+```typescript
+// src/lib/ai-service.ts
 
-### The Solution: Contextual Spinners
+import { A1_W01_CONTEXT, WeekContextSchema } from './domain/schemas/submission.schema';
 
-```javascript
-// components/FeedbackSpinner.astro
+export async function generateFeedback(
+  content: string, 
+  context: z.infer<typeof WeekContextSchema>
+) {
+  // Build prompt with explicit constraints
+  const prompt = `
+You are a German language tutor. Provide constructive feedback on this student's writing.
+
+CONTENT:
+${content}
+
+PEDAGOGICAL CONTEXT:
+- Level: ${context.level}
+- Week: ${context.weekId}
+- Taught grammar: ${context.taughtGrammar.join(', ')}
+- Taught vocabulary: ${context.taughtVocabulary.join(', ')}
+- FORBIDDEN CORRECTIONS: ${context.forbiddenCorrections.join(', ')}
+
+RULES:
+1. ONLY correct grammar and vocabulary that has been taught
+2. DO NOT mention or correct forbidden topics
+3. Be encouraging and specific
+4. Provide 2-3 actionable suggestions maximum
+5. Respond in Spanish (student's native language)
+
+FEEDBACK:
+`;
+  
+  // Call DeepSeek API
+  const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${import.meta.env.DEEPSEEK_API_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: 'deepseek-chat',
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.7,
+      max_tokens: 500
+    })
+  });
+  
+  const data = await response.json();
+  return data.choices[0].message.content;
+}
+```
+
+### Latency Management: Contextual Spinners
+
+```typescript
+// src/components/FeedbackSpinner.astro
+
 const feedbackMessages = [
   "Analizando Nominativ...",
   "Preparando Feedback...",
   "Revisando Akkusativ...",
   "Generando correcciones...",
   "Validando tu texto...",
-  "Consultando Grammatik...",
-  "Fast fertig..."
+  "Consultando gramática...",
+  "Preparando sugerencias..."
 ];
 
-let currentMessage = feedbackMessages[0];
-let messageIndex = 0;
-
-// Rotate every 2 seconds
+// Rotate messages during AI processing
+let currentIndex = 0;
 setInterval(() => {
-  messageIndex = (messageIndex + 1) % feedbackMessages.length;
-  currentMessage = feedbackMessages[messageIndex];
+  currentIndex = (currentIndex + 1) % feedbackMessages.length;
+  document.getElementById('spinner-text').textContent = feedbackMessages[currentIndex];
 }, 2000);
 ```
 
-**Result**: Users perceived progress, not failure.
+**Result:** Students perceived progress instead of waiting.
 
 ---
 
-## 📝 Architectural Decision Record (ADR)
+## 🔐 OAuth Challenges with Supabase Auth
 
-### Why an ADR Was Indispensable
+### The Redirect Loop Problem
 
-With competing sources of truth (DB schema, code, frontend, Sheets), we needed an explicit contract.
+**Symptom:**
+- Login with Google redirected to production (`huhugerman.com`)
+- Vercel Preview deployments couldn't complete authentication
+- Logout button would freeze
 
-```markdown
-# ADR-001: Migrate from GAS to Supabase
+**Root Cause (Diagnosed via HAR file):**
+Supabase Auth (PKCE flow) injected `site_url: https://huhugerman.com` into the state token, ignoring the dynamic `redirectTo` parameter in strict preview environments.
 
-## Status
-Accepted — 2026-01-15
+### Mitigation Strategy
 
-## Context
-- GAS cannot receive POST requests
-- Relational data needed for submissions + feedback
-- Type safety required for pedagogical constraints
-- OAuth Google needed for institutional login
+```typescript
+// src/lib/supabase.ts
 
-## Decision
-Migrate backend to Supabase (PostgreSQL + Auth + Storage)
+import { createClient } from '@supabase/supabase-js';
 
-## Consequences
-### Positive
-- Clear separation: frontend (Astro) vs backend (Supabase)
-- Type-safe API contracts with Zod
-- Row-level security for student data
-- Scalable relational model
+const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL;
+const supabaseKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY;
 
-### Negative
-- Increased complexity vs Sheets
-- Learning curve for RLS policies
-- Auth redirect issues in Vercel Preview (known limitation)
+export const supabase = createClient(supabaseUrl, supabaseKey, {
+  auth: {
+    flowType: 'pkce',
+    detectSessionInUrl: true,
+    persistSession: true,
+    autoRefreshToken: true
+  }
+});
 
-## References
-- https://supabase.com/docs
-- https://github.com/colinhacks/zod
+// Handle auth redirects
+export async function handleOAuthRedirect() {
+  const { data, error } = await supabase.auth.getSession();
+  
+  if (error) {
+    console.error('Auth session error:', error);
+    // Fallback to manual login
+    return { session: null, error };
+  }
+  
+  return { session: data.session, error: null };
+}
+```
+
+**Decision:** Accept that Preview deployments would have limited auth functionality. Focus on production stability.
+
+---
+
+## 🛣️ Dynamic Routes with Forgiving Parsing
+
+### Route Structure
+
+```
+/aleman1/w01
+/aleman2/w03
+```
+
+### Forgiving Week Slug Normalization
+
+```typescript
+// src/pages/[level]/[week]/index.astro
+
+import { COURSE_CONFIG } from '../../../lib/roadmap';
+
+// Normalize week slug (handle typos: w1, W01, w01, etc.)
+function normalizeWeekSlug(slug: string): string {
+  // Remove leading 'w' or 'W'
+  let normalized = slug.replace(/^[wW]/, '');
+  
+  // Pad with zero if single digit
+  if (normalized.length === 1) {
+    normalized = '0' + normalized;
+  }
+  
+  // Re-add 'w' prefix
+  return `w${normalized}`;
+}
+
+// Get session data
+export async function getStaticPaths() {
+  const paths = [];
+  
+  for (const [levelKey, levelConfig] of Object.entries(COURSE_CONFIG)) {
+    for (const week of levelConfig.weeks) {
+      if (week.active) {
+        paths.push({
+          params: { level: levelKey, week: week.slug },
+          props: { session: week }
+        });
+      }
+    }
+  }
+  
+  return paths;
+}
+
+// Handle route requests
+export async function get({ params }: any) {
+  const { level, week } = params;
+  const normalizedWeek = normalizeWeekSlug(week);
+  
+  // Find session (forgiving match)
+  const levelConfig = COURSE_CONFIG[level as keyof typeof COURSE_CONFIG];
+  const session = levelConfig?.weeks.find(w => 
+    w.slug === normalizedWeek || w.id.includes(normalizedWeek)
+  );
+  
+  if (!session) {
+    return {
+      status: 404,
+      body: `Session not found: ${level}/${normalizedWeek}`
+    };
+  }
+  
+  return {
+    body: { session, normalizedWeek }
+  };
+}
+```
+
+**Result:** Students could type `w1`, `W01`, or `w01` and still reach the correct session.
+
+---
+
+## 📊 Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    Student Portal                        │
+├─────────────────────────────────────────────────────────┤
+│                                                          │
+│  ┌──────────────┐    ┌──────────────┐    ┌───────────┐ │
+│  │   Astro      │    │   Zod        │    │  Supabase │ │
+│  │   Pages      │───▶│   Schemas    │───▶│   Client  │ │
+│  │   (SSR)      │    │   (DDD)      │    │           │ │
+│  └──────────────┘    └──────────────┘    └───────────┘ │
+│                                                          │
+│  ┌──────────────┐    ┌──────────────┐                  │
+│  │   DeepSeek   │◀───│   AI Service │                  │
+│  │   API        │    │   (Prompt    │                  │
+│  │              │    │   Engineering)│                  │
+│  └──────────────┘    └──────────────┘                  │
+│                                                          │
+└─────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 🔄 Migration Timeline
+## 🔗 Related Repository
 
-| Date | Milestone | Key Decision |
-|------|-----------|--------------|
-| 2025-11 | MVP with Google Forms + Sheets | Optimize for speed, accept technical debt |
-| 2025-12 | Identity normalization script | Tolerate ambiguity, don't block users |
-| 2026-01-10 | First AI integration (DeepSeek) | POST limitation discovered |
-| 2026-01-15 | Decision: migrate to Supabase | ADR-001 documented |
-| 2026-01-25 | Supabase schema designed | Normalized profiles + submissions |
-| 2026-02-01 | Zod schemas implemented | Pedagogical constraints formalized |
-| 2026-02-10 | Production deploy (Vercel) | SSR + Supabase Auth working |
+This frontend implementation is coupled with the identity resolution backend:
+
+👉 **[cse-identity-engine-german-edu](https://github.com/yassergandhi/cse-identity-engine-german-edu)**
 
 ---
 
-## 🎓 Transferable Patterns
+## 📚 Learning Outcomes
 
-| Pattern | Evidence | Transferable To |
-|---------|----------|-----------------|
-| **Tolerant Identity Resolution** | `identity-normalization.gs`, SHA-256 fingerprinting | Onboarding flows, public forms, data migration |
-| **Domain-Driven Constraints** | `week-context.schema.ts`, Zod validation | Fintech (compliance), Healthtech (regulations), Edtech (curriculum) |
-| **Observability over Blocking** | Flags (`DUPLICATED_USER`, `EMAIL_CORRECTED`) | Fraud detection, user moderation, audit trails |
-| **Contextual UX for Latency** | Rotating spinner messages | AI apps, batch processing, async workflows |
-| **ADR as Source of Truth** | `ARCHITECTURAL_DECISIONS.md` | Any team needing explicit design rationale |
-| **Pedagogical Snapshot** | `context_snapshot` JSONB field | Versioned business rules, compliance archiving |
+This repository demonstrates:
 
----
-
-## 💡 Key Learnings
-
-### 1. Identity ≠ Authentication
-
-In hybrid university environments, **tolerance beats perfection**. Students will use the wrong account, misspell emails, and submit incomplete names. The system's job is to **observe and adapt**, not to enforce purity.
-
-### 2. Constraints Are Features
-
-Encoding "what has been taught" as explicit schema constraints prevented AI over-correction. This is **domain-driven design** in practice: the business rule (pedagogy) became the technical contract.
-
-### 3. Flags Enable Audit Without Friction
-
-Instead of rejecting invalid submissions, we flagged them for later review. This reduced support tickets to **zero** for authentication issues.
-
-### 4. Latency Must Be Acknowledged
-
-A 5-second AI response feels broken if the UI is frozen. Contextual spinners ("Analizando Nominativ...") transformed perceived latency into **engagement**.
-
-### 5. Documentation Is Code
-
-The ADR became the single source of truth for architectural decisions. Without it, tribal knowledge would have created ambiguity.
+- ✅ **Domain-Driven Design** applied to pedagogical constraints
+- ✅ **Defensive programming** with Zod schemas at API boundary
+- ✅ **Progressive enhancement** (forgiving route parsing)
+- ✅ **Latency management** with contextual UX feedback
+- ✅ **OAuth integration challenges** and mitigation strategies
+- ✅ **Constraint propagation** from configuration to AI prompts
 
 ---
 
-## 🔗 Related Repositories
+## 🛠️ Local Development
 
-| Repository | Purpose | Status |
-|------------|---------|--------|
-| **[huhugerman-portal](https://github.com/yassergandhi/huhugerman-portal)** | Student-facing UI (Astro) | Archived |
-| **Domain Driven Pedagogy Demo** | Backend, identity, schemas | Archived |
-| **[yassergandhi.dev](https://yassergandhi.dev)** | Professional landing page | Active |
+```bash
+# Clone repository
+git clone https://github.com/yassergandhi/cse-student-portal-german-edu.git
+
+# Install dependencies
+npm install
+
+# Run local dev server
+npm run dev
+
+# Build for production
+npm run build
+```
 
 ---
 
-## 📜 License
+## 📄 License
 
-Educational artifact. All code is documented for learning purposes.
+Educational use. All rights reserved.
 
 ---
 
-## 🙏 Acknowledgments
+## 📝 Summary: What These Repositories Demonstrate
 
-This project served real students at UAM during the 26-P trimester. Their imperfect submissions taught more about system design than any theoretical exercise.
+| Capability | Evidence | Transferable To |
+|------------|----------|-----------------|
+| **Identity Resolution** | SHA-256 fingerprinting, non-blocking flags | SaaS onboarding, form processing |
+| **Progressive Migration** | Sheets → Supabase with zero downtime | Legacy system modernization |
+| **Domain-Driven Design** | Zod schemas with pedagogical constraints | Complex business logic systems |
+| **Defensive Programming** | Validation at API boundary (fail fast) | API development, microservices |
+| **Observability** | Flags, audit trails, JSONB snapshots | Operational diagnostics |
+| **Customer Success Mindset** | Friction reduction over perfection | CSE, Implementation Engineering |
 
-**The best systems are built for humans, not for ideal users.**
+These repositories are **not toy projects**. They solved **real problems for real users** under real constraints.
