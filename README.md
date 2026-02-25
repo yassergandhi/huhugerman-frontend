@@ -1,414 +1,217 @@
 # cse-student-portal-german-edu
 
-## 🏛️ Post-Mortem: Frontend Implementation & Pedagogical Constraints
+> **"La IA ya no decide: obedece al dominio."**
 
-**Status:** ARCHIVED · Learning Artifact · Real-World Implementation
-
-This repository documents the **frontend evolution** of a German language education platform, showcasing how **Domain-Driven Design** and **defensive programming** were applied to create a frictionless student experience.
-
-Originally used by real students at Universidad Autónoma Metropolitana (UAM), this portal solved **real pedagogical challenges** through technical constraints.
+**Estado:** ARCHIVADO · Artefacto de aprendizaje · Implementación con usuarios reales  
+**Período de producción:** 2024–2025 · UAM Azcapotzalco, Ciudad de México  
+**Stack:** Astro · TypeScript · Supabase · DeepSeek AI · Vercel
 
 ---
 
-## 🎯 Problem Statement
+## Por qué existe este repositorio
 
-### The Feedback Scope Problem
+Este repositorio documenta la **evolución del portal estudiantil** del sistema huhuGERMAN, desde un formulario con feedback de IA sin restricciones hasta un sistema donde el dominio pedagógico gobierna explícitamente lo que la IA puede y no puede corregir.
 
-When integrating DeepSeek AI for automated writing feedback, a critical issue emerged:
-
-> **The AI corrected grammar and vocabulary that students hadn't learned yet.**
-
-This created confusion and undermined the pedagogical progression.
+El problema central no era técnico. Era pedagógico. Y resolverlo requirió arquitectura.
 
 ---
 
-## 🗺️ From Roadmap.js to Domain-Driven Schemas
+## El problema que causó la refactorización
 
-### Initial Approach: Roadmap Configuration
+La primera versión del portal generaba feedback de IA sin restricciones. Un estudiante de Alemán 1 en la semana 2 recibía correcciones de Perfekt, Akkusativ y subordinadas — estructuras que no vería hasta el tercer mes de clase.
+
+Resultado pedagógico: confusión, frustración, percepción de insuficiencia. El estudiante no entendía qué había hecho mal porque el sistema lo estaba corrigiendo con reglas que nadie le había enseñado.
+
+> **"La IA corrige cosas que no he enseñado todavía."**  
+> — Fricción real documentada, 2024
+
+Esta es la friccón que forzó la transición de MVP a producto.
+
+---
+
+## El ADR que cambió todo
+
+### Decisión central
+
+**Separar explícitamente el dominio pedagógico del resto del sistema y convertirlo en la fuente única de verdad.**
+
+Esto significa que antes de escribir una sola línea de prompt para la IA, el sistema ya sabe:
+
+- Qué gramática se ha visto (`gesehen`)
+- Qué vocabulario se ha visto (`gesehen`)
+- Qué temas están prohibidos corregir (`nicht_gesehen`)
+- Qué puede y qué no puede tocar la IA (`korrektur`)
+- Bajo qué condiciones pragmáticas opera el estudiante
+
+**Consecuencias aceptadas de esta decisión:**
+- Más código upfront
+- Menos "flexibilidad creativa" de la IA
+- Mayor disciplina de naming y estructura
+
+**Consecuencias ganadas:**
+- IA con feedback pedagógicamente coherente
+- Correcciones controladas y predecibles
+- Escalabilidad real: añadir una semana = añadir un archivo, no reescribir prompts
+
+---
+
+## Evolución de la arquitectura
+
+### Antes (MVP): configuración implícita
 
 ```javascript
-// src/lib/roadmap.js (Initial version)
-
+// roadmap.js — La lógica pedagógica vivía aquí
+// Pero "roadmap" no es "dominio"
+// Era UI + configuración + contexto mezclados
 export const COURSE_CONFIG = {
-  aleman1: {
-    title: 'Alemán 1: Fundamentos',
-    weeks: [
-      { id: 'a1-w1', title: 'Woche 1: Begrüßungen', active: true },
-      { id: 'a1-w2', title: 'Woche 2: Zahlen & Uhrzeit', active: false },
-      // ...
-    ]
-  },
-  aleman2: {
-    title: 'Alemán 2: Erweiterung',
-    weeks: [
-      { id: 'a2-w1', title: 'Woche 1: Perfekt', active: true },
-      // ...
-    ]
-  }
+  aleman1: { weeks: [...] }
 };
 ```
 
-**Problem:** This was **configuration only**. No enforcement of pedagogical constraints.
+El contexto pedagógico vivía en la cabeza del profesor. El sistema lo recibía a través del texto del prompt, construido a mano, semana por semana. Escalar significaba copiar prompts.
+
+### Después (Producto): dominio explícito y tipado
+
+```
+src/lib/
+├── domain/
+│   ├── schemas/
+│   │   └── week-context.schema.ts  ← contrato Zod: fuente de verdad
+│   └── weeks/
+│       ├── a1-woche-01.ts          ← instancia concreta de la semana 1
+│       ├── a1-woche-02.ts
+│       └── week-registry.ts        ← loader dinámico
+├── ai/
+│   ├── ai-client.ts
+│   └── prompt-builder.ts          ← construye prompts DESDE el dominio
+└── roadmap.ts                     ← navegación, NO dominio
+```
+
+**Regla estructural que no se negocia:** Si algo es pedagógico, vive en `/domain`. Si es UI o infraestructura, no vive ahí. `roadmap.ts ≠ /domain/weeks/*`.
 
 ---
 
-### Evolution: Zod Schemas with Pedagogical Constraints
+## El WochenKontextSchema: corazón del sistema
 
 ```typescript
-// src/lib/domain/schemas/submission.schema.ts
-
-import { z } from 'zod';
-
-/**
- * Week Context Schema
- * Defines what has been taught and what is forbidden to correct
- */
-export const WeekContextSchema = z.object({
-  weekId: z.string().regex(/^[aw]\d{2}$/, 'Format: w01, w02, etc.'),
+// week-context.schema.ts
+const WochenKontextSchema = z.object({
+  weekId: z.string(),
   level: z.enum(['aleman1', 'aleman2']),
-  taughtGrammar: z.array(z.string()).describe('Grammar topics covered this week'),
-  taughtVocabulary: z.array(z.string()).describe('Vocabulary introduced this week'),
-  forbiddenCorrections: z.array(z.string()).describe('DO NOT correct these topics yet')
-});
-
-/**
- * Submission Input Schema
- * Enforces pedagogical constraints at the API boundary
- */
-export const SubmissionInputSchema = z.object({
-  // Identity fields (normalized by backend)
-  email: z.string().email('Invalid email format'),
-  firstName: z.string().min(2, 'First name must be at least 2 characters'),
-  lastName: z.string().min(2, 'Last name must be at least 2 characters'),
-  
-  // Academic context
-  week: z.string().regex(/^w\d{2}$/, {
-    message: 'Week must be in format w01, w02, etc.'
+  gesehen: z.object({
+    grammatik: z.array(z.string()),   // ['Verbzweistellung', 'Nominativ']
+    lexikon: z.array(z.string()),
+    soziopragmatik: z.array(z.string()),
   }),
-  level: z.enum(['aleman1', 'aleman2']),
-  
-  // Content validation
-  content: z.string()
-    .min(50, 'Submission must be at least 50 characters')
-    .max(2000, 'Submission cannot exceed 2000 characters'),
-  
-  // Pedagogical constraints (snapshot at submission time)
-  pedagogicalContext: WeekContextSchema
+  nicht_gesehen: z.array(z.string()), // lo que está prohibido corregir
+  korrektur: z.object({
+    erlaubt: z.array(z.string()),     // qué puede corregir la IA
+    verboten: z.array(z.string()),    // qué NO debe tocar
+    fehlertoleranz: z.string(),       // nivel de tolerancia al error
+    anti_overcorrection: z.boolean(),
+  }),
 });
-
-// Example: Week 1 constraints for A1
-export const A1_W01_CONTEXT = {
-  weekId: 'a1-w01',
-  level: 'aleman1' as const,
-  taughtGrammar: ['Nominativ', 'Artikel (der/die/das)', 'Präsens'],
-  taughtVocabulary: ['Begrüßungen', 'Zahlen 1-10', 'Familie'],
-  forbiddenCorrections: [
-    'Akkusativ',
-    'Dativ',
-    'Perfekt',
-    'Adjektivdeklination',
-    'Relativsätze'
-  ]
-} satisfies z.infer<typeof WeekContextSchema>;
 ```
 
-### Key Innovation: Constraint Propagation
-
-The professor (who was also the developer) could update the roadmap, and those constraints **automatically propagated** to:
-
-1. **Frontend validation** (fail fast)
-2. **AI prompt engineering** (scope feedback)
-3. **Database audit trail** (pedagogical_context JSONB)
+Este schema elimina: prompts mágicos, lógica dispersa, interpretaciones ambiguas. La IA no decide qué corregir — obedece lo que el dominio declara.
 
 ---
 
-## 🤖 DeepSeek AI Integration
+## El flujo del sistema (producto)
 
-### The Feedback Pipeline
-
-```typescript
-// src/lib/ai-service.ts
-
-import { A1_W01_CONTEXT, WeekContextSchema } from './domain/schemas/submission.schema';
-
-export async function generateFeedback(
-  content: string, 
-  context: z.infer<typeof WeekContextSchema>
-) {
-  // Build prompt with explicit constraints
-  const prompt = `
-You are a German language tutor. Provide constructive feedback on this student's writing.
-
-CONTENT:
-${content}
-
-PEDAGOGICAL CONTEXT:
-- Level: ${context.level}
-- Week: ${context.weekId}
-- Taught grammar: ${context.taughtGrammar.join(', ')}
-- Taught vocabulary: ${context.taughtVocabulary.join(', ')}
-- FORBIDDEN CORRECTIONS: ${context.forbiddenCorrections.join(', ')}
-
-RULES:
-1. ONLY correct grammar and vocabulary that has been taught
-2. DO NOT mention or correct forbidden topics
-3. Be encouraging and specific
-4. Provide 2-3 actionable suggestions maximum
-5. Respond in Spanish (student's native language)
-
-FEEDBACK:
-`;
-  
-  // Call DeepSeek API
-  const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${import.meta.env.DEEPSEEK_API_KEY}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      model: 'deepseek-chat',
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0.7,
-      max_tokens: 500
-    })
-  });
-  
-  const data = await response.json();
-  return data.choices[0].message.content;
-}
+```
+1. Frontend envía: { text, studentName, kurs, woche }
+          ↓
+2. Backend carga week-context por (kurs, woche)
+          ↓
+3. Zod valida el contrato
+          ↓
+4. prompt-builder construye el prompt DESDE el dominio
+   (lo que se vio, lo que no se vio, límites de corrección)
+          ↓
+5. IA genera feedback dentro de los límites del dominio
+          ↓
+6. Supabase persiste: texto + feedback + pedagogical_context JSONB
+          ↓
+7. Dashboard muestra feedback al estudiante
 ```
 
-### Latency Management: Contextual Spinners
-
-```typescript
-// src/components/FeedbackSpinner.astro
-
-const feedbackMessages = [
-  "Analizando Nominativ...",
-  "Preparando Feedback...",
-  "Revisando Akkusativ...",
-  "Generando correcciones...",
-  "Validando tu texto...",
-  "Consultando gramática...",
-  "Preparando sugerencias..."
-];
-
-// Rotate messages during AI processing
-let currentIndex = 0;
-setInterval(() => {
-  currentIndex = (currentIndex + 1) % feedbackMessages.length;
-  document.getElementById('spinner-text').textContent = feedbackMessages[currentIndex];
-}, 2000);
-```
-
-**Result:** Students perceived progress instead of waiting.
+El campo `pedagogical_context` en Supabase es clave: guarda un snapshot del contexto pedagógico en el momento de la entrega. Permite auditoría futura. Si las reglas cambian en la semana 5, las entregas de la semana 2 siguen auditables con las reglas que estaban vigentes cuando se entregaron.
 
 ---
 
-## 🔐 OAuth Challenges with Supabase Auth
+## Desafíos técnicos reales resueltos
 
-### The Redirect Loop Problem
+### OAuth con Supabase en Vercel Preview
 
-**Symptom:**
-- Login with Google redirected to production (`huhugerman.com`)
-- Vercel Preview deployments couldn't complete authentication
-- Logout button would freeze
+**Síntoma:** Login con Google redirigía siempre a producción (`huhugerman.com`), rompiendo el flujo en deployments de preview.
 
-**Root Cause (Diagnosed via HAR file):**
-Supabase Auth (PKCE flow) injected `site_url: https://huhugerman.com` into the state token, ignoring the dynamic `redirectTo` parameter in strict preview environments.
+**Causa raíz (diagnosticada via HAR file):** Supabase Auth (PKCE flow) inyecta `site_url` hardcodeado en el state token, ignorando el parámetro dinámico `redirectTo` en entornos de preview estrictos.
 
-### Mitigation Strategy
+**Decisión tomada:** Aceptar que los preview deployments tienen funcionalidad de auth limitada. Enfocarse en estabilidad de producción. Documentar el tradeoff.
 
-```typescript
-// src/lib/supabase.ts
+Este es un ejemplo de madurez de sistema: no todos los problemas se resuelven; algunos se documentan y se acotan.
 
-import { createClient } from '@supabase/supabase-js';
+### Gestión de latencia de IA
 
-const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL;
-const supabaseKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY;
+Los tiempos de respuesta de 3-8 segundos del proveedor de IA generaban percepción de sistema roto en el estudiante. Solución: spinners con mensajes que rotan mencionando explícitamente lo que se está analizando (`"Analizando Nominativ..."`, `"Revisando Akkusativ..."`). Los estudiantes percibían progreso en lugar de espera.
 
-export const supabase = createClient(supabaseUrl, supabaseKey, {
-  auth: {
-    flowType: 'pkce',
-    detectSessionInUrl: true,
-    persistSession: true,
-    autoRefreshToken: true
-  }
-});
+### Routing perdonador para slugs de semana
 
-// Handle auth redirects
-export async function handleOAuthRedirect() {
-  const { data, error } = await supabase.auth.getSession();
-  
-  if (error) {
-    console.error('Auth session error:', error);
-    // Fallback to manual login
-    return { session: null, error };
-  }
-  
-  return { session: data.session, error: null };
-}
-```
-
-**Decision:** Accept that Preview deployments would have limited auth functionality. Focus on production stability.
+Estudiantes accedían a `/w1`, `/W01`, `/w01` indistintamente. El sistema normaliza todos al formato canónico antes de buscar la sesión, sin errores 404.
 
 ---
 
-## 🛣️ Dynamic Routes with Forgiving Parsing
+## Deudas técnicas documentadas (no errores: backlog)
 
-### Route Structure
+Un sistema maduro distingue entre errores y deuda técnica consciente. Las deudas de este sistema al momento de archivar:
 
-```
-/aleman1/w01
-/aleman2/w03
-```
+- `saveSubmission` sin tipar completamente con Zod
+- Loader dinámico de semanas aún con lógica `if` en lugar de `map` en algunas rutas
+- Migración formal del campo `student_name` pendiente
+- Mock de IA en lugar de proveedor real en algunos entornos de prueba
 
-### Forgiving Week Slug Normalization
-
-```typescript
-// src/pages/[level]/[week]/index.astro
-
-import { COURSE_CONFIG } from '../../../lib/roadmap';
-
-// Normalize week slug (handle typos: w1, W01, w01, etc.)
-function normalizeWeekSlug(slug: string): string {
-  // Remove leading 'w' or 'W'
-  let normalized = slug.replace(/^[wW]/, '');
-  
-  // Pad with zero if single digit
-  if (normalized.length === 1) {
-    normalized = '0' + normalized;
-  }
-  
-  // Re-add 'w' prefix
-  return `w${normalized}`;
-}
-
-// Get session data
-export async function getStaticPaths() {
-  const paths = [];
-  
-  for (const [levelKey, levelConfig] of Object.entries(COURSE_CONFIG)) {
-    for (const week of levelConfig.weeks) {
-      if (week.active) {
-        paths.push({
-          params: { level: levelKey, week: week.slug },
-          props: { session: week }
-        });
-      }
-    }
-  }
-  
-  return paths;
-}
-
-// Handle route requests
-export async function get({ params }: any) {
-  const { level, week } = params;
-  const normalizedWeek = normalizeWeekSlug(week);
-  
-  // Find session (forgiving match)
-  const levelConfig = COURSE_CONFIG[level as keyof typeof COURSE_CONFIG];
-  const session = levelConfig?.weeks.find(w => 
-    w.slug === normalizedWeek || w.id.includes(normalizedWeek)
-  );
-  
-  if (!session) {
-    return {
-      status: 404,
-      body: `Session not found: ${level}/${normalizedWeek}`
-    };
-  }
-  
-  return {
-    body: { session, normalizedWeek }
-  };
-}
-```
-
-**Result:** Students could type `w1`, `W01`, or `w01` and still reach the correct session.
+> **La deuda documentada es una decisión, no una falla.**
 
 ---
 
-## 📊 Architecture Overview
+## Por qué esto no era MVP al momento de archivarse
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                    Student Portal                        │
-├─────────────────────────────────────────────────────────┤
-│                                                          │
-│  ┌──────────────┐    ┌──────────────┐    ┌───────────┐ │
-│  │   Astro      │    │   Zod        │    │  Supabase │ │
-│  │   Pages      │───▶│   Schemas    │───▶│   Client  │ │
-│  │   (SSR)      │    │   (DDD)      │    │           │ │
-│  └──────────────┘    └──────────────┘    └───────────┘ │
-│                                                          │
-│  ┌──────────────┐    ┌──────────────┐                  │
-│  │   DeepSeek   │◀───│   AI Service │                  │
-│  │   API        │    │   (Prompt    │                  │
-│  │              │    │   Engineering)│                  │
-│  └──────────────┘    └──────────────┘                  │
-│                                                          │
-└─────────────────────────────────────────────────────────┘
-```
+| Dimensión | MVP | Producto |
+|-----------|-----|---------|
+| Contexto pedagógico | Implícito (en la cabeza del profesor) | Explícito y tipado con Zod |
+| Comportamiento de IA | "Inteligente" (sin límites) | Gobernada por dominio |
+| Escalabilidad | Copiar prompts por semana | Añadir un archivo de semana |
+| Corrección | Inconsistente | Controlada y predecible |
+| Onboarding | Difícil | Guiado por estructura de dominio |
+| Auditoría | Imposible | Snapshot en JSONB por entrega |
 
 ---
 
-## 🔗 Related Repository
+## Por qué el ADR llegó tarde (y qué enseña eso)
 
-This frontend implementation is coupled with the identity resolution backend:
+El ADR se escribió **después** del MVP, por descubrimiento posterior. No fue una decisión de arquitectura proactiva, fue una respuesta a fricciones reales que revelaron que el sistema no era gobernable.
 
-👉 **[cse-identity-engine-german-edu](https://github.com/yassergandhi/cse-identity-engine-german-edu)**
+Esto es honesto de admitir — y es exactamente lo que convierte este proyecto en evidencia de madurez técnica. Un desarrollador junior hubiera seguido parcheando prompts. La decisión de parar, reconocer el problema de dominio, y refactorizar hacia DDD requiere comprensión de por qué los sistemas se rompen.
 
----
-
-## 📚 Learning Outcomes
-
-This repository demonstrates:
-
-- ✅ **Domain-Driven Design** applied to pedagogical constraints
-- ✅ **Defensive programming** with Zod schemas at API boundary
-- ✅ **Progressive enhancement** (forgiving route parsing)
-- ✅ **Latency management** with contextual UX feedback
-- ✅ **OAuth integration challenges** and mitigation strategies
-- ✅ **Constraint propagation** from configuration to AI prompts
+El costo de no escribir un ADR desde el inicio: deuda técnica que se acumula silenciosamente hasta que el sistema depende del criterio humano para no romperse.
 
 ---
 
-## 🛠️ Local Development
+## Repositorio relacionado
 
-```bash
-# Clone repository
-git clone https://github.com/yassergandhi/cse-student-portal-german-edu.git
+Este portal es la contraparte del motor de identidad:
 
-# Install dependencies
-npm install
-
-# Run local dev server
-npm run dev
-
-# Build for production
-npm run build
-```
+→ **[cse-identity-engine-german-edu](https://github.com/yassergandhi/cse-identity-engine-german-edu)**
 
 ---
 
-## 📄 License
+## Sobre el autor
 
-Educational use. All rights reserved.
+Yasser Gandhi Hernández Esquivel — Learning Systems Architect · AI-Driven Instructional Designer · German Language Expert C1. 15 años enseñando alemán en instituciones públicas mexicanas. Creador del método huhuGERMAN. 
+
+→ [yassergandhi.dev](https://yassergandhi.dev) · [LinkedIn](https://linkedin.com/in/yassergandhi) · [huhugerman.com](https://huhugerman.com)
 
 ---
 
-## 📝 Summary: What These Repositories Demonstrate
-
-| Capability | Evidence | Transferable To |
-|------------|----------|-----------------|
-| **Identity Resolution** | SHA-256 fingerprinting, non-blocking flags | SaaS onboarding, form processing |
-| **Progressive Migration** | Sheets → Supabase with zero downtime | Legacy system modernization |
-| **Domain-Driven Design** | Zod schemas with pedagogical constraints | Complex business logic systems |
-| **Defensive Programming** | Validation at API boundary (fail fast) | API development, microservices |
-| **Observability** | Flags, audit trails, JSONB snapshots | Operational diagnostics |
-| **Customer Success Mindset** | Friction reduction over perfection | CSE, Implementation Engineering |
-
-These repositories are **not toy projects**. They solved **real problems for real users** under real constraints.
+*Licencia: Uso educativo. Todos los derechos reservados.*
