@@ -1,217 +1,199 @@
-# cse-student-portal-german-edu
+# huhugerman-frontend
 
-> **"La IA ya no decide: obedece al dominio."**
+**Student-facing portal for the huhuGERMAN platform.**
 
-**Estado:** ARCHIVADO · Artefacto de aprendizaje · Implementación con usuarios reales  
-**Período de producción:** 2024–2025 · UAM Azcapotzalco, Ciudad de México  
-**Stack:** Astro · TypeScript · Supabase · DeepSeek AI · Vercel
+An Astro + Supabase application that delivers AI-powered feedback on German writing exercises — constrained by a typed pedagogical domain so the AI only corrects what has actually been taught.
 
 ---
 
-## Por qué existe este repositorio
+## The Core Problem This Solves
 
-Este repositorio documenta la **evolución del portal estudiantil** del sistema huhuGERMAN, desde un formulario con feedback de IA sin restricciones hasta un sistema donde el dominio pedagógico gobierna explícitamente lo que la IA puede y no puede corregir.
+Early versions of the portal used DeepSeek AI without explicit pedagogical context. The AI was technically capable of correcting Perfekt constructions, Akkusativ case, and subordinate clauses. The problem: Week 2 A1 students had not been introduced to any of those structures.
 
-El problema central no era técnico. Era pedagógico. Y resolverlo requirió arquitectura.
+**Real feedback from a student, 2024:**
 
----
+> *"La IA corrige cosas que no he enseñado todavía."*
+>
+> — Documented classroom friction that triggered the DDD refactoring sprint
 
-## El problema que causó la refactorización
+A technically functional system was producing **pedagogically incoherent feedback.** Students were receiving corrections for mistakes they couldn't yet understand. The AI had no domain — it was operating on its full German linguistic capability rather than on the week's curriculum.
 
-La primera versión del portal generaba feedback de IA sin restricciones. Un estudiante de Alemán 1 en la semana 2 recibía correcciones de Perfekt, Akkusativ y subordinadas — estructuras que no vería hasta el tercer mes de clase.
-
-Resultado pedagógico: confusión, frustración, percepción de insuficiencia. El estudiante no entendía qué había hecho mal porque el sistema lo estaba corrigiendo con reglas que nadie le había enseñado.
-
-> **"La IA corrige cosas que no he enseñado todavía."**  
-> — Fricción real documentada, 2024
-
-Esta es la friccón que forzó la transición de MVP a producto.
+**The fix was not prompt engineering. It was domain separation.**
 
 ---
 
-## El ADR que cambió todo
+## How the Domain Governs the AI
 
-### Decisión central
-
-**Separar explícitamente el dominio pedagógico del resto del sistema y convertirlo en la fuente única de verdad.**
-
-Esto significa que antes de escribir una sola línea de prompt para la IA, el sistema ya sabe:
-
-- Qué gramática se ha visto (`gesehen`)
-- Qué vocabulario se ha visto (`gesehen`)
-- Qué temas están prohibidos corregir (`nicht_gesehen`)
-- Qué puede y qué no puede tocar la IA (`korrektur`)
-- Bajo qué condiciones pragmáticas opera el estudiante
-
-**Consecuencias aceptadas de esta decisión:**
-- Más código upfront
-- Menos "flexibilidad creativa" de la IA
-- Mayor disciplina de naming y estructura
-
-**Consecuencias ganadas:**
-- IA con feedback pedagógicamente coherente
-- Correcciones controladas y predecibles
-- Escalabilidad real: añadir una semana = añadir un archivo, no reescribir prompts
-
----
-
-## Evolución de la arquitectura
-
-### Antes (MVP): configuración implícita
-
-```javascript
-// roadmap.js — La lógica pedagógica vivía aquí
-// Pero "roadmap" no es "dominio"
-// Era UI + configuración + contexto mezclados
-export const COURSE_CONFIG = {
-  aleman1: { weeks: [...] }
-};
-```
-
-El contexto pedagógico vivía en la cabeza del profesor. El sistema lo recibía a través del texto del prompt, construido a mano, semana por semana. Escalar significaba copiar prompts.
-
-### Después (Producto): dominio explícito y tipado
-
-```
-src/lib/
-├── domain/
-│   ├── schemas/
-│   │   └── week-context.schema.ts  ← contrato Zod: fuente de verdad
-│   └── weeks/
-│       ├── a1-woche-01.ts          ← instancia concreta de la semana 1
-│       ├── a1-woche-02.ts
-│       └── week-registry.ts        ← loader dinámico
-├── ai/
-│   ├── ai-client.ts
-│   └── prompt-builder.ts          ← construye prompts DESDE el dominio
-└── roadmap.ts                     ← navegación, NO dominio
-```
-
-**Regla estructural que no se negocia:** Si algo es pedagógico, vive en `/domain`. Si es UI o infraestructura, no vive ahí. `roadmap.ts ≠ /domain/weeks/*`.
-
----
-
-## El WochenKontextSchema: corazón del sistema
+The portal loads a `WochenKontextSchema` (Week Context Schema) before constructing any prompt. The schema is a Zod-typed contract that specifies exactly what the AI may and may not correct:
 
 ```typescript
-// week-context.schema.ts
-const WochenKontextSchema = z.object({
-  weekId: z.string(),
-  level: z.enum(['aleman1', 'aleman2']),
-  gesehen: z.object({
-    grammatik: z.array(z.string()),   // ['Verbzweistellung', 'Nominativ']
-    lexikon: z.array(z.string()),
-    soziopragmatik: z.array(z.string()),
-  }),
-  nicht_gesehen: z.array(z.string()), // lo que está prohibido corregir
-  korrektur: z.object({
-    erlaubt: z.array(z.string()),     // qué puede corregir la IA
-    verboten: z.array(z.string()),    // qué NO debe tocar
-    fehlertoleranz: z.string(),       // nivel de tolerancia al error
-    anti_overcorrection: z.boolean(),
-  }),
-});
+interface WochenKontext {
+  woche: number;
+  niveau: 'A1' | 'A2' | 'B1' | 'B2' | 'C1';
+  
+  gesehen: {
+    grammatik: string[];    // Grammar structures taught this week
+    vokabular: string[];    // Vocabulary domains introduced
+    pragmatik: string[];    // Pragmatic functions covered
+  };
+  
+  nicht_gesehen: string[];  // Structures FORBIDDEN from correction
+  
+  korrektur: {
+    erlaubt: string[];      // What AI may correct
+    verboten: string[];     // What AI must ignore
+    toleranz: string[];     // What AI notes but doesn't penalize
+    anti_ueberkorrektion: string[];  // Anti-overcorrection directives
+  };
+}
 ```
 
-Este schema elimina: prompts mágicos, lógica dispersa, interpretaciones ambiguas. La IA no decide qué corregir — obedece lo que el dominio declara.
+The `prompt-builder` receives this schema and constructs the AI prompt from it. **The AI does not decide what to correct.** The schema decides. The AI executes.
+
+This is the difference between:
+- **Without domain:** AI corrects everything it can detect
+- **With domain:** AI corrects only what the schema permits
 
 ---
 
-## El flujo del sistema (producto)
+## Architecture: Before and After
+
+### Before (MVP)
 
 ```
-1. Frontend envía: { text, studentName, kurs, woche }
-          ↓
-2. Backend carga week-context por (kurs, woche)
-          ↓
-3. Zod valida el contrato
-          ↓
-4. prompt-builder construye el prompt DESDE el dominio
-   (lo que se vio, lo que no se vio, límites de corrección)
-          ↓
-5. IA genera feedback dentro de los límites del dominio
-          ↓
-6. Supabase persiste: texto + feedback + pedagogical_context JSONB
-          ↓
-7. Dashboard muestra feedback al estudiante
+src/
+├── lib/
+│   ├── roadmap.js         ← implicit curriculum context
+│   └── ai-service.ts      ← prompt constructed ad-hoc
 ```
 
-El campo `pedagogical_context` en Supabase es clave: guarda un snapshot del contexto pedagógico en el momento de la entrega. Permite auditoría futura. Si las reglas cambian en la semana 5, las entregas de la semana 2 siguen auditables con las reglas que estaban vigentes cuando se entregaron.
+The prompt was built from a flat roadmap object with no type enforcement. If the roadmap was wrong, the AI would silently produce incorrect feedback. No validation. No audit trail.
+
+### After (Product)
+
+```
+src/
+├── lib/
+│   ├── domain/
+│   │   ├── schemas/
+│   │   │   └── week-context.schema.ts    ← Zod contract (source of truth)
+│   │   └── weeks/
+│   │       ├── a1-woche-01.ts            ← Week instance
+│   │       ├── a1-woche-02.ts            ← (validated at build time)
+│   │       └── ...
+│   ├── ai/
+│   │   ├── ai-client.ts
+│   │   └── prompt-builder.ts             ← builds from domain, not free text
+│   └── roadmap.ts
+```
+
+The schema is the **single source of truth.** Week instances are validated against it at build time. Incorrect domain data fails loudly rather than silently producing wrong AI behavior.
 
 ---
 
-## Desafíos técnicos reales resueltos
+## Submission Flow: Domain-Constrained Feedback
 
-### OAuth con Supabase en Vercel Preview
+```
+Student submits exercise text
+        ↓
+Frontend sends to POST /api/submit
+        ↓
+Backend loads WochenKontext for current week
+        ↓
+Zod validates the context (fail-fast if malformed)
+        ↓
+prompt-builder constructs AI prompt from schema
+        ↓
+DeepSeek API returns pedagogically scoped feedback
+        ↓
+Supabase persists: submission + feedback + JSONB context snapshot
+        ↓
+Student receives feedback aligned with what was taught
+```
 
-**Síntoma:** Login con Google redirigía siempre a producción (`huhugerman.com`), rompiendo el flujo en deployments de preview.
+The **JSONB context snapshot** is the audit trail for the research layer. Every feedback response is permanently linked to the exact pedagogical context that produced it. This enables:
 
-**Causa raíz (diagnosticada via HAR file):** Supabase Auth (PKCE flow) inyecta `site_url` hardcodeado en el state token, ignorando el parámetro dinámico `redirectTo` en entornos de preview estrictos.
-
-**Decisión tomada:** Aceptar que los preview deployments tienen funcionalidad de auth limitada. Enfocarse en estabilidad de producción. Documentar el tradeoff.
-
-Este es un ejemplo de madurez de sistema: no todos los problemas se resuelven; algunos se documentan y se acotan.
-
-### Gestión de latencia de IA
-
-Los tiempos de respuesta de 3-8 segundos del proveedor de IA generaban percepción de sistema roto en el estudiante. Solución: spinners con mensajes que rotan mencionando explícitamente lo que se está analizando (`"Analizando Nominativ..."`, `"Revisando Akkusativ..."`). Los estudiantes percibían progreso en lugar de espera.
-
-### Routing perdonador para slugs de semana
-
-Estudiantes accedían a `/w1`, `/W01`, `/w01` indistintamente. El sistema normaliza todos al formato canónico antes de buscar la sesión, sin errores 404.
-
----
-
-## Deudas técnicas documentadas (no errores: backlog)
-
-Un sistema maduro distingue entre errores y deuda técnica consciente. Las deudas de este sistema al momento de archivar:
-
-- `saveSubmission` sin tipar completamente con Zod
-- Loader dinámico de semanas aún con lógica `if` en lugar de `map` en algunas rutas
-- Migración formal del campo `student_name` pendiente
-- Mock de IA en lugar de proveedor real en algunos entornos de prueba
-
-> **La deuda documentada es una decisión, no una falla.**
+- **Reproducibility:** Given the same submission and context, the feedback is deterministic (modulo AI variance)
+- **Auditability:** Researchers can verify that feedback was pedagogically appropriate
+- **Iteration:** Future versions can analyze which feedback patterns correlate with student learning
 
 ---
 
-## Por qué esto no era MVP al momento de archivarse
+## Technical Decisions and Trade-offs
 
-| Dimensión | MVP | Producto |
-|-----------|-----|---------|
-| Contexto pedagógico | Implícito (en la cabeza del profesor) | Explícito y tipado con Zod |
-| Comportamiento de IA | "Inteligente" (sin límites) | Gobernada por dominio |
-| Escalabilidad | Copiar prompts por semana | Añadir un archivo de semana |
-| Corrección | Inconsistente | Controlada y predecible |
-| Onboarding | Difícil | Guiado por estructura de dominio |
-| Auditoría | Imposible | Snapshot en JSONB por entrega |
+### OAuth / Supabase Auth
 
----
+The PKCE flow hardcodes `site_url` in the Supabase project configuration. This breaks authentication on Vercel preview deployments.
 
-## Por qué el ADR llegó tarde (y qué enseña eso)
+**Decision:** Accept limited auth capability in preview environments, prioritize production stability. Preview deployments are for layout QA, not functional testing.
 
-El ADR se escribió **después** del MVP, por descubrimiento posterior. No fue una decisión de arquitectura proactiva, fue una respuesta a fricciones reales que revelaron que el sistema no era gobernable.
+### Latency Management
 
-Esto es honesto de admitir — y es exactamente lo que convierte este proyecto en evidencia de madurez técnica. Un desarrollador junior hubiera seguido parcheando prompts. La decisión de parar, reconocer el problema de dominio, y refactorizar hacia DDD requiere comprensión de por qué los sistemas se rompen.
+DeepSeek responses take 2–8 seconds. The portal displays rotating German messages during the wait:
 
-El costo de no escribir un ADR desde el inicio: deuda técnica que se acumula silenciosamente hasta que el sistema depende del criterio humano para no romperse.
+- "Analysiere Nominativ..."
+- "Überprüfe Artikel..."
+- "Prüfe Wortstellung..."
 
----
+This is not cosmetic. It reinforces that something linguistically specific is happening, which is consistent with the pedagogical framing of the method. The student sees that the system is thinking about *their* German, not just generating generic feedback.
 
-## Repositorio relacionado
+### Why the ADR Arrived Late
 
-Este portal es la contraparte del motor de identidad:
+The MVP validated the user flow, not the pedagogical model. The system worked — students submitted, feedback arrived, the classroom flow was not disrupted. The domain debt became visible only when real friction appeared at scale.
 
-→ **[cse-identity-engine-german-edu](https://github.com/yassergandhi/cse-identity-engine-german-edu)**
+**Documented debt is a decision, not a failure.** The moment the friction appeared ("La IA corrige cosas que no he enseñado todavía"), the refactoring was inevitable and justified.
 
 ---
 
-## Sobre el autor
+## Why This Demonstrates Learning Systems Architecture
 
-Yasser Gandhi Hernández Esquivel — Learning Systems Architect · AI-Driven Instructional Designer · German Language Expert C1. 15 años enseñando alemán en instituciones públicas mexicanas. Creador del método huhuGERMAN. 
+A developer builds a feature that works. A learning systems architect ensures that what works is also pedagogically coherent.
 
-→ [yassergandhi.dev](https://yassergandhi.dev) · [LinkedIn](https://linkedin.com/in/yassergandhi) · [huhugerman.com](https://huhugerman.com)
+This frontend demonstrates:
+
+**Pedagogical domain as constraint:** The AI is not maximally capable — it is pedagogically appropriate. This is harder to design than "let the AI do everything it can."
+
+**Type safety as pedagogy:** Zod schemas are not just for data validation. They are the codification of pedagogical decisions. A malformed schema fails loudly, preventing silent pedagogical errors.
+
+**Observability for research:** The JSONB context snapshot is not a log — it is research data. Every feedback instance is permanently linked to its pedagogical context, enabling future analysis of what feedback correlates with learning.
+
+**Latency as communication:** The rotating German messages during AI processing are not UX filler. They are part of the pedagogical framing — they communicate that the system understands the student's German and is responding to it specifically.
 
 ---
 
-*Licencia: Uso educativo. Todos los derechos reservados.*
+## Stack
+
+| Category | Technologies |
+|----------|---------------|
+| **Frontend** | Astro · TypeScript · Tailwind CSS |
+| **Backend / Data** | Supabase · PostgreSQL · Zod |
+| **AI** | DeepSeek API |
+| **Infrastructure** | Vercel |
+| **Patterns** | Domain-Driven Design · Type-driven development |
+
+---
+
+## Related Repositories
+
+→ **[huhugerman.com](https://huhugerman.com)** — Production system  
+→ **[huhugerman-backend](https://github.com/yassergandhi/huhugerman-backend)** — Identity engine (SHA-256, UUID, normalization)  
+→ **[feature/dynamic-lessons](https://github.com/yassergandhi/huhugerman)** — DDD refactoring branch  
+→ **[resilient-api-integration-demo](https://github.com/yassergandhi/resilient-api-integration-demo)** — Chaos engineering diagnostic
+
+---
+
+## About the Author
+
+**Yasser Gandhi Hernández Esquivel** — The Purple Squirrel of EdTech
+
+Learning Systems Architect · AI-Driven Instructional Designer · German Language Expert C1
+
+This frontend is the manifestation of a core principle: **the AI is not the system. The pedagogy is the system.** The AI is a tool that the pedagogy constrains. This distinction is the difference between a platform that generates feedback and a platform that generates learning.
+
+→ [yassergandhi.dev](https://yassergandhi.dev) · [LinkedIn](https://linkedin.com/in/yassergandhi)
+
+---
+
+*License: Educational use. All rights reserved.*
+
+*HIER DARFST DU FEHLER MACHEN.*
