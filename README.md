@@ -20,7 +20,7 @@ The first question produces a working system. The second produces a system where
 
 ## What Triggered This Branch
 
-Student feedback in 2024 Q2 surfaced a consistent pattern: **AI responses were correcting German grammar structures that had not yet been introduced in the course.**
+Student feedback in 2024 surfaced a consistent pattern: **AI responses were correcting German grammar structures that had not yet been introduced in the course.**
 
 Week 2 A1 students received corrections for:
 - **Perfekt constructions** (not introduced until Week 5)
@@ -33,12 +33,11 @@ Week 2 A1 students received corrections for:
 - What had been taught
 - What corrections were off-limits
 
-This is the moment the project shifted from "technically functional" to "pedagogically coherent."
+This is the moment the project shifted from "technically functional" to "pedagogically coherent." The classroom friction is documented in the research data for the article targeting *Die Unterrichtspraxis* (May 2026).
 
 ---
 
 ## Domain Structure: Single Source of Truth
-
 ```
 src/lib/domain/
 ├── schemas/
@@ -51,20 +50,19 @@ src/lib/domain/
 ```
 
 ### WochenKontextSchema: The Pedagogical Contract
-
 ```typescript
 const WochenKontextSchema = z.object({
   woche: z.number().min(1).max(52),
   niveau: z.enum(['A1', 'A2', 'B1', 'B2', 'C1']),
-  
+
   gesehen: z.object({
     grammatik: z.array(z.string()),   // Grammar structures introduced so far
     vokabular: z.array(z.string()),   // Vocabulary domains active
     pragmatik: z.array(z.string()),   // Pragmatic functions covered
   }),
-  
+
   nicht_gesehen: z.array(z.string()), // Structures FORBIDDEN from correction
-  
+
   korrektur: z.object({
     erlaubt: z.array(z.string()),              // AI may correct these
     verboten: z.array(z.string()),             // AI must ignore these
@@ -73,24 +71,23 @@ const WochenKontextSchema = z.object({
   }),
 });
 
-type WochenKontext = z.infer<typeof WochenKontextSchema>;
+type WochenKontext = z.infer;
 ```
 
 Week instances are TypeScript objects validated against this schema **at build time.** Malformed domain data fails loudly — not a runtime exception, not silent incorrect behavior.
 
 Example week instance:
-
 ```typescript
 // a1-woche-02.ts
 export const A1_WOCHE_02: WochenKontext = {
   woche: 2,
   niveau: 'A1',
-  gesehen: {
+  gelernt: {
     grammatik: ['Nominativ', 'Präsens (regular verbs)', 'Artikel (bestimmt)'],
     vokabular: ['Familie', 'Beruf', 'Wohnen'],
     pragmatik: ['Sich vorstellen', 'Fragen stellen'],
   },
-  nicht_gesehen: ['Perfekt', 'Akkusativ', 'Dativ', 'Konjunktiv'],
+  nicht_gelernt: ['Perfekt', 'Akkusativ', 'Dativ', 'Konjunktiv'],
   korrektur: {
     erlaubt: ['Nominativ article agreement', 'Präsens conjugation'],
     verboten: ['Perfekt', 'Akkusativ', 'Dativ'],
@@ -108,7 +105,6 @@ export const A1_WOCHE_02: WochenKontext = {
 ## The Prompt-Builder Is Not Creative
 
 The value is not in writing clever prompts. The value is in having a **typed domain that makes clever prompts unnecessary.**
-
 ```typescript
 export function buildPrompt(
   studentText: string,
@@ -144,7 +140,6 @@ The professor defined the rules. The builder executes them. The AI obeys.
 ---
 
 ## API Flow: Domain Governs AI
-
 ```
 POST /api/submit
   ↓
@@ -169,7 +164,7 @@ Every feedback response is permanently linked to the exact pedagogical context t
 
 - **Reproducibility:** Given the same submission and context, feedback is deterministic (modulo AI variance)
 - **Auditability:** Researchers can verify that feedback was pedagogically appropriate
-- **Iteration:** Future versions can analyze which feedback patterns correlate with student learning
+- **Iteration:** Future versions can analyze which feedback patterns correlate with student learning outcomes
 
 ---
 
@@ -189,15 +184,13 @@ Not silent. Not hidden. Documented.
 
 ## Why This Branch Demonstrates Learning Systems Architecture
 
-Converting pedagogical knowledge into typed domain schemas is the core competency of a Learning Systems Architect. Anyone can write an AI prompt. Encoding years of curriculum design into a type-safe contract that governs AI behavior — that requires both domains simultaneously.
-
-This branch demonstrates:
+Converting pedagogical knowledge into typed domain schemas is the core competency of a Learning Systems Architect. Anyone can write an AI prompt. Encoding years of curriculum design into a type-safe contract that governs AI behavior requires both domains simultaneously.
 
 **Pedagogy as constraint:** The AI is not maximally capable — it is pedagogically appropriate. This is harder to design than "let the AI do everything it can."
 
 **Type safety as governance:** Zod schemas are not just for data validation. They are the codification of pedagogical decisions. A malformed schema fails loudly, preventing silent pedagogical errors.
 
-**Domain-driven error handling:** When the AI receives a prompt built from the domain, it is not receiving generic instructions. It is receiving the specific rules of this week's curriculum. The error handling is domain-aware.
+**Domain-driven error handling:** When the AI receives a prompt built from the domain, it is not receiving generic instructions. It is receiving the specific rules of this week's curriculum.
 
 **Observability for research:** The JSONB context snapshot is not a log — it is research data. Every feedback instance is permanently linked to its pedagogical context, enabling future analysis of what feedback correlates with learning.
 
@@ -218,29 +211,30 @@ This branch demonstrates:
 
 ---
 
-## Related Repositories
+## Related
 
-→ **[huhugerman.com](https://huhugerman.com)** — Production system  
-→ **[huhugerman-frontend](https://github.com/yassergandhi/huhugerman-frontend)** — Student portal (Astro + DeepSeek AI)  
+→ **[huhugerman.com](https://huhugerman.com)** — Production system (input auténtico desde A1 · 2011→)  
+→ **[huhugerman-frontend/main](https://github.com/yassergandhi/huhugerman-frontend)** — Student portal (Astro + DeepSeek AI)  
 → **[huhugerman-backend](https://github.com/yassergandhi/huhugerman-backend)** — Identity resolution engine  
+→ **[huhugerman-mvp-notes](https://github.com/yassergandhi/huhugerman-mvp-notes)** — PRD, MVP contract, type definitions  
 → **[resilient-api-integration-demo](https://github.com/yassergandhi/resilient-api-integration-demo)** — Chaos engineering diagnostic
 
 ---
 
-## About the Author
+## About
 
-**Yasser Gandhi Hernández Esquivel** — The Purple Squirrel of EdTech
+**Yasser Gandhi Hernández Esquivel**
 
-Learning Systems Architect · AI-Driven Instructional Designer · German Language Expert C1
+Learning Systems Architect · Germanista C1 · Senior Developer
+
+Lic. Letras Alemanas UNAM (2012) · MEd Pedagogía UNAM (2020) · Lic. Desarrollo de Sistemas Web UdeG (2025, GPA 98.5) · C1 Hochschule Offenburg (2019) · 11 Scopus peer-review contributions · Active reviewer RIEM/UNAM
 
 This branch is the manifestation of a core principle: **pedagogy is not a constraint on engineering — it is the foundation of engineering.** The moment the codebase began to model pedagogical knowledge explicitly, the system became governable. Before that moment, it was a tool. After that moment, it was a system.
 
-15 years of teaching in Mexican public institutions taught me that the best systems are the ones where the domain is visible in the code, not hidden in comments or spreadsheets.
+That shift did not come from a software architecture course. It came from 15 years of watching what happens when a student receives feedback they have no framework to process.
 
 → [yassergandhi.dev](https://yassergandhi.dev) · [LinkedIn](https://linkedin.com/in/yassergandhi)
 
 ---
-
-*License: Educational use. All rights reserved.*
 
 *HIER DARFST DU FEHLER MACHEN.*
