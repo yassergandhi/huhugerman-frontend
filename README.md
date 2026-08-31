@@ -2,7 +2,7 @@
 
 **Student-facing portal for the huhuGERMAN platform.**
 
-An Astro + Supabase application that delivers AI-powered feedback on German writing exercises — constrained by a typed pedagogical domain so the AI only corrects what has actually been taught.
+An Astro + Supabase application that delivers AI-powered feedback on German writing exercises, scoped by a per-activity system prompt so the AI corrects only what's been taught in that week's lesson.
 
 ---
 
@@ -24,50 +24,27 @@ A technically functional system was producing **pedagogically incoherent feedbac
 
 ## How the Domain Governs the AI
 
-The portal loads a `WochenKontextSchema` before constructing any prompt. The schema is a Zod-typed contract that specifies exactly what the AI may and may not correct:
-```typescript
-interface WochenKontext {
-  woche: number;
-  niveau: 'A1' | 'A2' | 'B1' | 'B2' | 'C1';
-
-  gesehen: {
-    grammatik: string[];    // Grammar structures taught this week
-    vokabular: string[];    // Vocabulary domains introduced
-    pragmatik: string[];    // Pragmatic functions covered
-  };
-
-  nicht_gesehen: string[];  // Structures FORBIDDEN from correction
-
-  korrektur: {
-    erlaubt: string[];               // What AI may correct
-    verboten: string[];              // What AI must ignore
-    toleranz: string[];              // What AI notes but doesn't penalize
-    anti_ueberkorrektion: string[];  // Anti-overcorrection directives
-  };
-}
-```
-
-The `prompt-builder` receives this schema and constructs the AI prompt from it. **The AI does not decide what to correct.** The schema decides. The AI executes.
-
-This is the difference between:
-- **Without domain:** AI corrects everything it can detect
-- **With domain:** AI corrects only what the schema permits
+In `main`, domain scoping is not schema-driven. `src/pages/api/submit.ts` hardcodes a single system prompt (Spanish, ~60 lines) that describes both tracked activities — Alemán 1 (A1: W-Fragen, verbs *heißen/wohnen/kommen/sein*) and Alemán 2 (A1+/A2: Tagesablauf, separable verbs) — and instructs the model to infer from the student's text which one applies before responding. There is no `WochenKontextSchema`, no Zod validation, and no `prompt-builder`. See [Architecture: Before and After](#architecture-before-and-after) below for what was designed to replace this and why it isn't running.
 
 ---
 
 ## Architecture: Before and After
 
-### Before (MVP)
+### Before (MVP) — this is what's running in `main`
 ```
 src/
 ├── lib/
-│   ├── roadmap.js         ← implicit curriculum context
-│   └── ai-service.ts      ← prompt constructed ad-hoc
+│   ├── roadmap.js          ← implicit curriculum context
+│   └── openai.js           ← DeepSeek client
+└── pages/
+    └── api/
+        └── submit.ts        ← hardcoded system prompt, no schema
 ```
 
-The prompt was built from a flat roadmap object with no type enforcement. If the roadmap was wrong, the AI would silently produce incorrect feedback. No validation. No audit trail.
+The prompt is a fixed string with no type enforcement. If it's wrong, the AI silently produces incorrect feedback. No validation, no audit trail. This is not a simplified description — it is the exact code path `main` runs today.
 
-### After (Product)
+### After (Product) — designed, not shipped
+
 ```
 src/
 ├── lib/
@@ -84,34 +61,27 @@ src/
 │   └── roadmap.ts
 ```
 
-The schema is the **single source of truth.** Week instances are validated against it at build time. Incorrect domain data fails loudly rather than silently producing wrong AI behavior.
+This design exists only on the `feature/dynamic-lessons` branch, which has never been merged into `main` (`git merge-base --is-ancestor origin/feature/dynamic-lessons main` fails). The branch is inactive. `zod` is not a dependency in `main`'s `package.json`, and nothing under `src/lib/domain/` exists in `main`. Treat this section as the intended architecture, not the current one.
 
 ---
 
-## Submission Flow: Domain-Constrained Feedback
+## Submission Flow: What Actually Runs (main)
 ```
 Student submits exercise text
         ↓
 Frontend sends to POST /api/submit
         ↓
-Backend loads WochenKontext for current week
+submit.ts sends the hardcoded system prompt + student text to DeepSeek
         ↓
-Zod validates the context (fail-fast if malformed)
+DeepSeek API returns feedback
         ↓
-prompt-builder constructs AI prompt from schema
+Frontend upserts to Supabase `submissions`:
+  user_id, user_email, session_id, content_text, ai_feedback
         ↓
-DeepSeek API returns pedagogically scoped feedback
-        ↓
-Supabase persists: submission + feedback + JSONB context snapshot
-        ↓
-Student receives feedback aligned with what was taught
+Student receives feedback
 ```
 
-The **JSONB context snapshot** is the audit trail for the research layer. Every feedback response is permanently linked to the exact pedagogical context that produced it. This enables:
-
-- **Reproducibility:** Given the same submission and context, the feedback is deterministic (modulo AI variance)
-- **Auditability:** Researchers can verify that feedback was pedagogically appropriate
-- **Iteration:** Future versions can analyze which feedback patterns correlate with student learning outcomes
+There's no context-loading step, no schema validation, and no JSONB snapshot — the upsert above is the entire persisted record. Reproducibility, auditability, and correlating feedback with learning outcomes are goals the `feature/dynamic-lessons` design was meant to serve, not capabilities this flow has today.
 
 ---
 
@@ -147,9 +117,9 @@ A developer builds a feature that works. A learning systems architect ensures th
 
 **Pedagogical domain as constraint:** The AI is not maximally capable — it is pedagogically appropriate. This is harder to design than "let the AI do everything it can."
 
-**Type safety as pedagogy:** Zod schemas are not just for data validation. They are the codification of pedagogical decisions. A malformed schema fails loudly, preventing silent pedagogical errors.
+**Type safety as pedagogy (designed, not shipped):** the `feature/dynamic-lessons` branch codifies pedagogical decisions as Zod schemas so a malformed one fails loudly instead of producing silent pedagogical errors. `main` has none of this — the domain lives entirely inside the hardcoded prompt in `submit.ts`.
 
-**Observability for research:** The JSONB context snapshot is not a log — it is research data. Every feedback instance is permanently linked to its pedagogical context, enabling future analysis of what feedback correlates with learning.
+**What's actually persisted:** each submission's `user_id`, `user_email`, `session_id`, `content_text`, and `ai_feedback` land in Supabase. There's no context snapshot to analyze — correlating feedback with learning outcomes would require the unshipped domain layer.
 
 **Latency as communication:** The rotating German messages during AI processing are not UX filler. They communicate that the system understands the student's German and is responding to it specifically.
 
@@ -160,10 +130,9 @@ A developer builds a feature that works. A learning systems architect ensures th
 | Category | Technologies |
 |----------|---------------|
 | **Frontend** | Astro · TypeScript · Tailwind CSS |
-| **Backend / Data** | Supabase · PostgreSQL · Zod |
+| **Backend / Data** | Supabase · PostgreSQL |
 | **AI** | DeepSeek API |
 | **Infrastructure** | Vercel |
-| **Patterns** | Domain-Driven Design · Type-driven development |
 
 ---
 
@@ -180,9 +149,9 @@ A developer builds a feature that works. A learning systems architect ensures th
 
 **Yasser Gandhi Hernández Esquivel**
 
-Learning Systems Architect · Germanista C1 · Senior Developer
+Profesor-investigador de alemán · Desarrollador web (Lic. UdeG) · Fundador de huhuGERMAN
 
-Lic. Letras Alemanas UNAM (2012) · MEd Pedagogía UNAM (2020) · Lic. Desarrollo de Sistemas Web UdeG (2025, GPA 98.5) · C1 Hochschule Offenburg (2019) · 11 Scopus peer-review contributions
+Lic. Letras Alemanas UNAM (2012) · MEd Pedagogía UNAM (2020) · Lic. Desarrollo de Sistemas Web UdeG (2025, GPA 98.5) · C1 Hochschule Offenburg (2019)
 
 This frontend is the manifestation of a core principle: **the AI is not the system. The pedagogy is the system.** The AI is a tool that the pedagogy constrains. This distinction is the difference between a platform that generates feedback and a platform that generates learning.
 
