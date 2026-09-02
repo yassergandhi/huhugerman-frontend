@@ -1,239 +1,138 @@
 # feature/dynamic-lessons
 
-**Domain-Driven Design refactoring branch for the huhuGERMAN platform.**
+**Experimental domain-modeling branch for `huhugerman-frontend`.**
 
-This branch marks the moment the project became a governable product. Not a technical upgrade — a mental shift in how the codebase models pedagogical knowledge.
+This branch explores a specific engineering question:
 
----
+> How can an application constrain AI behavior using explicit domain rules instead of relying on a free-form prompt alone?
 
-## The Mental Shift
+It is not merged into `main`, and it should not be described as production functionality.
 
-| Before | After |
-|--------|-------|
-| "What text does the frontend send to the AI?" | "What rules in the pedagogical domain allow this action?" |
-| Working system | Pedagogically correct system |
-| AI operates on full capability | AI operates within curriculum scope |
+## Why this branch exists
 
-The first question produces a working system. The second produces a system where *working* means pedagogically correct, not just technically functional.
+The portal reached a point where a model could produce feedback that was linguistically valid but outside the student's current instructional context.
 
----
+The important failure was not transport, persistence or rendering. The application could work technically while still producing the wrong kind of feedback for the situation.
 
-## What Triggered This Branch
+That exposed a domain problem:
 
-Student feedback in 2024 surfaced a consistent pattern: **AI responses were correcting German grammar structures that had not yet been introduced in the course.**
+- the model knew more German than the student had been taught;
+- the application did not yet encode those curricular boundaries as data;
+- the prompt alone was carrying rules that the codebase could not validate.
 
-Week 2 A1 students received corrections for:
-- **Perfekt constructions** (not introduced until Week 5)
-- **Akkusativ case** (not introduced until Week 7)
+This branch moves those constraints toward a typed domain model.
 
-**The system was not broken.** Submissions arrived, feedback was saved, the student flow was uninterrupted. But the feedback was **pedagogically harmful** — it introduced anxiety about structures the student had no framework to understand.
+## The domain contract
 
-**Root cause:** The AI had no domain. It operated on its full German language model capability. Nothing in the codebase told it:
-- What week it was
-- What had been taught
-- What corrections were off-limits
+The central artifact is:
 
-This is the moment the project shifted from "technically functional" to "pedagogically coherent." The classroom friction is documented in the research data for the article targeting *Die Unterrichtspraxis* (May 2026).
+`src/lib/domain/schemas/week-context.schema.ts`
 
----
+It uses Zod to model curriculum state and correction policy, including:
 
-## Domain Structure: Single Source of Truth
-```
-src/lib/domain/
-├── schemas/
-│   └── week-context.schema.ts    ← Zod contract (single source of truth)
-└── weeks/
-    ├── a1-woche-01.ts            ← Week instance (validated at build)
-    ├── a1-woche-02.ts
-    ├── a1-woche-03.ts
-    └── ...
-```
+- course and week;
+- grammar already introduced;
+- vocabulary domains;
+- sociopragmatic content;
+- structures that have not yet been introduced;
+- rules for what may be corrected;
+- rules for what must not be corrected;
+- tolerance settings and anti-overcorrection constraints.
 
-### WochenKontextSchema: The Pedagogical Contract
-```typescript
-const WochenKontextSchema = z.object({
-  woche: z.number().min(1).max(52),
-  niveau: z.enum(['A1', 'A2', 'B1', 'B2', 'C1']),
+A simplified view is:
 
-  gesehen: z.object({
-    grammatik: z.array(z.string()),   // Grammar structures introduced so far
-    vokabular: z.array(z.string()),   // Vocabulary domains active
-    pragmatik: z.array(z.string()),   // Pragmatic functions covered
-  }),
-
-  nicht_gesehen: z.array(z.string()), // Structures FORBIDDEN from correction
-
-  korrektur: z.object({
-    erlaubt: z.array(z.string()),              // AI may correct these
-    verboten: z.array(z.string()),             // AI must ignore these
-    toleranz: z.array(z.string()),             // AI notes but doesn't penalize
-    anti_ueberkorrektion: z.array(z.string()), // Anti-overcorrection directives
-  }),
-});
-
-type WochenKontext = z.infer;
+```text
+weekly curriculum context
+        ↓
+Zod validation
+        ↓
+what was learned / not learned
+        ↓
+allowed / forbidden / tolerated correction behavior
+        ↓
+AI prompt constructed from domain data
 ```
 
-Week instances are TypeScript objects validated against this schema **at build time.** Malformed domain data fails loudly — not a runtime exception, not silent incorrect behavior.
+The value is not a clever prompt. The value is making important rules inspectable and validatable before the model receives them.
 
-Example week instance:
-```typescript
-// a1-woche-02.ts
-export const A1_WOCHE_02: WochenKontext = {
-  woche: 2,
-  niveau: 'A1',
-  gelernt: {
-    grammatik: ['Nominativ', 'Präsens (regular verbs)', 'Artikel (bestimmt)'],
-    vokabular: ['Familie', 'Beruf', 'Wohnen'],
-    pragmatik: ['Sich vorstellen', 'Fragen stellen'],
-  },
-  nicht_gelernt: ['Perfekt', 'Akkusativ', 'Dativ', 'Konjunktiv'],
-  korrektur: {
-    erlaubt: ['Nominativ article agreement', 'Präsens conjugation'],
-    verboten: ['Perfekt', 'Akkusativ', 'Dativ'],
-    toleranz: ['Minor spelling variations'],
-    anti_ueberkorrektion: [
-      'Do not correct word order variations that are semantically correct',
-      'Do not introduce structures not in gesehen.grammatik',
-    ],
-  },
-};
+## Example principle: domain > AI
+
+A general-purpose model may be capable of correcting a structure.
+
+That does not mean the application should authorize that correction.
+
+This branch separates:
+
+```text
+model capability
+        ≠
+application authority
 ```
 
----
+That distinction is useful beyond language education. In any domain-sensitive AI integration, the application should own the constraints that define acceptable behavior.
 
-## The Prompt-Builder Is Not Creative
+## What is implemented on this branch
 
-The value is not in writing clever prompts. The value is in having a **typed domain that makes clever prompts unnecessary.**
-```typescript
-export function buildPrompt(
-  studentText: string,
-  context: WochenKontext
-): string {
-  return `
-You are a German language instructor for a student at level ${context.niveau}, Week ${context.woche}.
+The branch includes:
 
-STRUCTURES INTRODUCED SO FAR:
-${context.gesehen.grammatik.map(g => `- ${g}`).join('\n')}
+- TypeScript;
+- Astro;
+- Zod as a dependency;
+- `WochenKontextSchema` and related sub-schemas;
+- typed curriculum data;
+- correction-policy structures;
+- helper functions for schema validation.
 
-STRUCTURES NOT YET INTRODUCED (do NOT correct):
-${context.nicht_gesehen.map(g => `- ${g}`).join('\n')}
+These are real branch artifacts.
 
-CORRECTION RULES:
-You may correct: ${context.korrektur.erlaubt.join(', ')}
-You must NOT correct: ${context.korrektur.verboten.join(', ')}
-You may note but not penalize: ${context.korrektur.toleranz.join(', ')}
+## What should not be claimed
 
-ANTI-OVERCORRECTION:
-${context.korrektur.anti_ueberkorrektion.map(r => `- ${r}`).join('\n')}
+This branch does **not** prove that:
 
-STUDENT TEXT:
-${studentText}
+- the refactor is deployed;
+- every weekly context is complete;
+- every AI response is deterministic;
+- every response is stored with a permanent context snapshot;
+- the design has been validated as a commercial product;
+- the author has senior software-engineering tenure.
 
-Provide feedback in Spanish (L1). Be specific about what was corrected and why.
-  `.trim();
-}
-```
+The branch is evidence of an architectural experiment and learning process, not of a production migration.
 
-The professor defined the rules. The builder executes them. The AI obeys.
+## Relationship to `main`
 
----
+`main` currently uses a fixed system prompt inside the submission flow. It does not use this Zod-backed weekly domain model.
 
-## API Flow: Domain Governs AI
-```
-POST /api/submit
-  ↓
-getWeekContext(woche)
-  ↓ Load pedagogical domain
-WochenKontextSchema.parse(context)
-  ↓ Zod validation (throws if invalid)
-buildPrompt(text, context)
-  ↓ Domain rules → AI prompt
-deepseekClient.complete(prompt)
-  ↓ AI executes domain rules
-persistence.save({
-  submission,
-  feedback,
-  pedagogical_context: context  ← JSONB snapshot (research audit trail)
-})
-  ↓
-Student receives feedback aligned with what was taught
-```
+The branch therefore represents an intended architectural direction that was implemented experimentally but never merged.
 
-Every feedback response is permanently linked to the exact pedagogical context that produced it. This enables:
-
-- **Reproducibility:** Given the same submission and context, feedback is deterministic (modulo AI variance)
-- **Auditability:** Researchers can verify that feedback was pedagogically appropriate
-- **Iteration:** Future versions can analyze which feedback patterns correlate with student learning outcomes
-
----
-
-## Documented Debts: Known, Tracked, Intentional
-
-Not silent. Not hidden. Documented.
-
-| Debt | Location | Status | Plan |
-|------|----------|--------|------|
-| Partial TypeScript typing on some fields | `saveSubmission()` | Known | Migrate to full strict mode |
-| Residual `if` in fallback route | Unauthenticated preview path | Known | Apply registry pattern |
-| Legacy `student_name` column | Supabase schema | Known | Migrate to UUID-only reference |
-
-**Documented debt is a decision.** Undocumented debt is a liability.
-
----
-
-## Why This Branch Demonstrates Learning Systems Architecture
-
-Converting pedagogical knowledge into typed domain schemas is the core competency of a Learning Systems Architect. Anyone can write an AI prompt. Encoding years of curriculum design into a type-safe contract that governs AI behavior requires both domains simultaneously.
-
-**Pedagogy as constraint:** The AI is not maximally capable — it is pedagogically appropriate. This is harder to design than "let the AI do everything it can."
-
-**Type safety as governance:** Zod schemas are not just for data validation. They are the codification of pedagogical decisions. A malformed schema fails loudly, preventing silent pedagogical errors.
-
-**Domain-driven error handling:** When the AI receives a prompt built from the domain, it is not receiving generic instructions. It is receiving the specific rules of this week's curriculum.
-
-**Observability for research:** The JSONB context snapshot is not a log — it is research data. Every feedback instance is permanently linked to its pedagogical context, enabling future analysis of what feedback correlates with learning.
-
-**Debt as decision:** Documented debts show that the system is mature enough to acknowledge imperfection. An immature system hides debt. A mature system documents it and plans for it.
-
----
+That difference is part of the repository history and should remain visible.
 
 ## Stack
 
 | Category | Technologies |
-|----------|---------------|
-| **Language** | TypeScript |
-| **Validation** | Zod |
-| **Frontend** | Astro |
-| **Backend / Data** | Supabase · PostgreSQL |
-| **AI** | DeepSeek API |
-| **Patterns** | Domain-Driven Design · Type-driven development |
+|---|---|
+| Language | TypeScript |
+| Framework | Astro |
+| Validation | Zod |
+| Data / API clients | Supabase client · OpenAI-compatible client / DeepSeek |
+| Pattern explored | Typed domain constraints for AI behavior |
 
----
+## Related repositories
 
-## Related
-
-→ **[huhugerman.com](https://huhugerman.com)** — Production system (input auténtico desde A1 · 2011→)  
-→ **[huhugerman-frontend/main](https://github.com/yassergandhi/huhugerman-frontend)** — Student portal (Astro + DeepSeek AI)  
-→ **[huhugerman-backend](https://github.com/yassergandhi/huhugerman-backend)** — Identity resolution engine  
-→ **[huhugerman-mvp-notes](https://github.com/yassergandhi/huhugerman-mvp-notes)** — PRD, MVP contract, type definitions  
-→ **[resilient-api-integration-demo](https://github.com/yassergandhi/resilient-api-integration-demo)** — Chaos engineering diagnostic
-
----
+- [huhugerman-frontend](https://github.com/yassergandhi/huhugerman-frontend) — current default branch
+- [huhugerman-backend](https://github.com/yassergandhi/huhugerman-backend) — identity-normalization prototype
+- [huhugerman_mvp_notes](https://github.com/yassergandhi/huhugerman_mvp_notes) — pre-implementation design history
+- [resilient-api-integration-demo](https://github.com/yassergandhi/resilient-api-integration-demo) — public failure-handling demo
+- `huhugerman-instrument` — private production Forms/submission workflow
 
 ## About
 
 **Yasser Gandhi Hernández Esquivel**
 
-Learning Systems Architect · Germanista C1 · Senior Developer
+Software Developer · German lecturer and researcher
 
-Lic. Letras Alemanas UNAM (2012) · MEd Pedagogía UNAM (2020) · Lic. Desarrollo de Sistemas Web UdeG (2025, GPA 98.5) · C1 Hochschule Offenburg (2019) · 11 Scopus peer-review contributions · Active reviewer RIEM/UNAM
+B.S. Web Systems Development (UdeG, 2025) · M.Ed. Pedagogy (UNAM, 2020) · German Studies (UNAM, 2012)
 
-This branch is the manifestation of a core principle: **pedagogy is not a constraint on engineering — it is the foundation of engineering.** The moment the codebase began to model pedagogical knowledge explicitly, the system became governable. Before that moment, it was a tool. After that moment, it was a system.
-
-That shift did not come from a software architecture course. It came from 15 years of watching what happens when a student receives feedback they have no framework to process.
-
-→ [yassergandhi.dev](https://yassergandhi.dev) · [LinkedIn](https://linkedin.com/in/yassergandhi)
+[LinkedIn](https://linkedin.com/in/yassergandhi)
 
 ---
 
